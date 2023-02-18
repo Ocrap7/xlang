@@ -1,0 +1,3 @@
+[workspace]
+members = ["xlang_core", "xlang_util", "xlang_compiler", "xlang_lsp/lsp_server"]
+resolver = "2"
