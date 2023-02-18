@@ -58,8 +58,6 @@ impl Evaluator {
             .map(|stmt| self.evaluate_statement(stmt))
             .collect();
 
-        println!("{}", self.rstate().scope.format());
-
         vals
     }
 
@@ -176,7 +174,37 @@ impl Evaluator {
                                 .update_value(&name, ScopeValue::ConstValue(arg));
                         }
 
-                        let value = self.evaluate_statement(&body);
+                        let _ = self.evaluate_statement(&body);
+
+                        // TODO: verify types here as well
+                        let value = if rptypes.len() == 1 {
+                            let Some((name, ty)) = rptypes
+                                .into_iter().next() else {
+                                    return ConstValue::empty()
+                                };
+                            if let Some(ScopeValue::ConstValue(cv)) =
+                                self.rstate().scope.find_symbol(&name)
+                            {
+                                cv.clone()
+                            } else {
+                                ConstValue::default_for(ty)
+                            }
+                        } else {
+                            let return_values: Vec<_> = rptypes
+                                .into_iter()
+                                .map(|(name, ty)| {
+                                    if let Some(ScopeValue::ConstValue(cv)) =
+                                        self.rstate().scope.find_symbol(&name)
+                                    {
+                                        cv.clone()
+                                    } else {
+                                        ConstValue::default_for(ty)
+                                    }
+                                })
+                                .collect();
+
+                            ConstValue::tuple(return_values)
+                        };
 
                         self.wstate().scope.pop_scope();
 

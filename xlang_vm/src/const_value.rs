@@ -192,6 +192,20 @@ impl ConstValue {
         }
     }
 
+    pub fn default_for(ty: Type) -> ConstValue {
+        let kind = match ty {
+            Type::Empty => ConstValueKind::Empty,
+            Type::Integer { .. } => ConstValueKind::Integer { value: 0 },
+            Type::Float { .. } => ConstValueKind::Float { value: 0.0 },
+            _ => ConstValueKind::Empty,
+        };
+
+        ConstValue {
+            ty,
+            kind,
+        }
+    }
+
     pub fn integer(value: u64, width: u8, signed: bool) -> ConstValue {
         ConstValue {
             kind: ConstValueKind::Integer { value: value },

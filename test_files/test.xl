@@ -1,4 +1,4 @@
 
-func: (i8 a) -> (i8 b), b = a
+func: (i8 a) -> (i8 b, i8 c), b = a, c = a * 2
 
 func(7)

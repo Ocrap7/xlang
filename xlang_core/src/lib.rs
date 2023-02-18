@@ -27,15 +27,9 @@ impl Module {
     pub fn parse_str(input: &str) -> (Module, Vec<ParseError>) {
         let mut lexer = Lexer {};
         let tokens = lexer.lex(&input);
-        for tok in &tokens {
-            println!("{:?}", tok);
-        }
 
         let parser = Parser::new(tokens);
         let parsed = parser.parse().unwrap();
-        for p in &parsed {
-            println!("{}", p.format());
-        }
 
         let er = parser.get_errors().clone();
 
@@ -99,8 +93,6 @@ impl Module {
             });
 
         md.descend(&parsed);
-
-        println!("Mods {}", mods.format());
 
         (
             Module {

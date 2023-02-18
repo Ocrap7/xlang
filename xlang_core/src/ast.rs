@@ -108,25 +108,8 @@ where
         if index % 2 == 0 {
             Some(&p.0)
         } else {
-            // Some(p.1.as_ref().unwrap())
-            None
+            Some(p.1.as_ref().unwrap())
         }
-    }
-
-    fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
-        let sz = if let Some((_, Some(_))) = self.tokens.last() {
-            self.tokens.len() * 2
-        } else if self.tokens.len() > 0 {
-            self.tokens.len() * 2 - 1
-        } else {
-            0
-        };
-        Box::new(StringFormatter(format!(
-            "Index::::::{} {} {}",
-            _index,
-            sz,
-            self.tokens.len()
-        )))
     }
 }
 
