@@ -1,6 +1,6 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::Index};
 
-use xlang_util::format::{NodeDisplay, TreeDisplay};
+use xlang_util::format::{NodeDisplay, TreeDisplay, Grouper};
 
 use crate::token::{Range, SpannedToken, Token, Unit};
 
@@ -108,8 +108,20 @@ where
         if index % 2 == 0 {
             Some(&p.0)
         } else {
-            Some(p.1.as_ref().unwrap())
+            // Some(p.1.as_ref().unwrap())
+            None
         }
+    }
+
+    fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
+        let sz = if let Some((_, Some(_))) = self.tokens.last() {
+            self.tokens.len() * 2
+        } else if self.tokens.len() > 0 {
+            self.tokens.len() * 2 - 1
+        } else {
+            0
+        };
+        Box::new(Grouper(format!("Index::::::{} {} {}", _index, sz, self.tokens.len())))
     }
 }
 

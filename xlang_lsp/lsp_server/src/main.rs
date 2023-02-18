@@ -1,7 +1,6 @@
 #![feature(box_patterns)]
 
 use std::collections::{HashMap, HashSet};
-use std::os::unix::raw::mode_t;
 use std::sync::{Arc, RwLock};
 
 use tokio::net::TcpListener;
@@ -125,19 +124,17 @@ impl Backend {
         match value {
             Expression::Ident(tok @ SpannedToken(_, Token::Ident(value_str))) => {
                 // TODO: lookup identifier in symbol tree
-                // if let SpannedToken(_, Token::Ident(ident)) = &tok {
-                if let Some(this_sym) = module.resolve_symbol_chain_indicies(scope_index.iter()) {
-                    if let Some(found_sym) = module.resolve_symbol(&this_sym, &value_str) {
-                        println!("Fund sym {}", found_sym.borrow().name);
-                        builder.push(
-                            tok.span().line_num,
-                            tok.span().position,
-                            tok.span().length,
-                            get_stype_index(SemanticTokenType::TYPE),
-                            0,
-                        );
-                    };
-                };
+                // if let Some(this_sym) = module.resolve_symbol_chain_indicies(scope_index.iter()) {
+                //     if let Some(found_sym) = module.resolve_symbol(&this_sym, &value_str) {
+                //         builder.push(
+                //             tok.span().line_num,
+                //             tok.span().position,
+                //             tok.span().length,
+                //             get_stype_index(SemanticTokenType::TYPE),
+                //             0,
+                //         );
+                //     };
+                // };
                 // }
                 builder.push(
                     tok.span().line_num,
@@ -193,7 +190,7 @@ impl Backend {
                 if let Some(left) = left {
                     self.recurse_expression(left, module, scope_index, builder);
                 }
-                if let Some(right) = right{
+                if let Some(right) = right {
                     self.recurse_expression(right, module, scope_index, builder);
                 }
             }
@@ -288,11 +285,16 @@ impl Backend {
     ) {
         match stmt {
             Statement::Decleration { ident, expr, .. } => {
+                let func = match expr {
+                    Some(Expression::Function { .. }) => get_stype_index_from_str("function"),
+                    Some(Expression::Record { .. }) => get_stype_index_from_str("struct"),
+                    _ => get_stype_index_from_str("variable"),
+                };
                 builder.push(
                     ident.span().line_num,
                     ident.span().position,
                     ident.span().length,
-                    get_stype_index_from_str("function"),
+                    func,
                     0,
                 );
                 if let Some(expr) = expr {

@@ -51,7 +51,7 @@
 					"default": "on",
 					"description": "Traces the communication between VS Code and the language server."
 				},
-				"xl.lsPath": {
+				"xlang.lsPath": {
 					"type": "string",
 					"scope": "resource",
 					"markdownDescription": "Path to X language server binary"

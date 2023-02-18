@@ -3,7 +3,7 @@ use std::sync::{RwLock, RwLockReadGuard};
 use crate::{
     ast::{ArgList, Param, ParamaterList, PunctuationList, Statement},
     error::{ParseError, ParseErrorKind},
-    token::{Operator, Range, SpannedToken, Token, TokenStream},
+    token::{Operator, Range, SpannedToken, Token, TokenStream, TokenIndex},
 };
 
 pub struct Parser {
@@ -274,6 +274,10 @@ impl Parser {
         while let Some(Token::Newline) = self.tokens.peek() {
             self.tokens.next();
         }
+    }
+
+    pub fn save_state(&self) -> TokenIndex {
+        self.tokens.get_index()
     }
 
     pub(crate) fn expect(&self, token_type: Token) -> Option<&SpannedToken> {

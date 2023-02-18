@@ -17,7 +17,7 @@ import {
     languages,
     InputBoxOptions,
     window,
-	ConfigurationTarget,
+    ConfigurationTarget,
 } from 'vscode'
 import * as net from 'net'
 import { exec } from 'child_process'
@@ -39,14 +39,14 @@ let client: LanguageClient
 export async function activate(context: ExtensionContext) {
     let serverModule = workspace.getConfiguration('xlang').get<string>('lsPath')
 
-	if (serverModule === '') {
-		serverModule = await promptLSPath()
-	}
+    if (serverModule === '' || serverModule === undefined) {
+        serverModule = await promptLSPath()
+    }
 
-	if (serverModule === '') {
-		console.error('Unable to find language server binary!')
-		return;
-	}
+    if (serverModule === '' || serverModule === undefined) {
+        console.error('Unable to find language server binary!')
+        return;
+    }
 
     let connectionInfo = {
         port: 5007,
@@ -56,7 +56,6 @@ export async function activate(context: ExtensionContext) {
     // Options to control the language client
     const clientOptions: LanguageClientOptions = {
         // Register the server for plain text documents
-        // documentSelector: [{ scheme: 'file', language: 'WGSL' }],
         documentSelector: [{ scheme: 'file', language: 'xlang' }],
         synchronize: {
             // Notify the server about file changes to '.clientrc files contained in the workspace
@@ -66,30 +65,32 @@ export async function activate(context: ExtensionContext) {
 
     let serverOptions = () => {
         return new Promise<StreamInfo>((resolve, reject) => {
-            // console.log('fsdjklfjsd')
-            // let ls = exec(`${serverModule}`)
+            let ls = exec(`${serverModule}`, (stderr, stdout, _) => {
+                if (stderr) {
+                    console.error(`exec error: ${stderr} ${serverModule}`);
+                    return;
+                }
+                console.log(`stdout: ${stdout}`);
+                console.error(`stderr: ${stderr}`);
+            })
+            console.log(ls)
 
-            // ls.stdout.on('data', data => {
-            //     console.log('fjsdklf', data)
+            ls.stderr.on('data', data => {
+                console.error(data)
+            })
+            ls.stderr.on('error', console.error)
+
+            ls.stdout.on('data', data => {
+                console.log('fjsdklf', data)
                 let socket = net.connect(connectionInfo)
                 let result: StreamInfo = {
                     writer: socket,
                     reader: socket,
                 }
                 resolve(result)
-            // })
+            })
+            ls.stdout.on('error', console.error)
         })
-        // Connect to language server via socket
-        // let ls = exec(`${serverModule}`)
-        // ls.stdout.on('data', function (data) {
-        // 	console.log('stdout: ' + data.toString());
-        // });
-        // let socket = net.connect(connectionInfo);
-        // let result: StreamInfo = {
-        // 	writer: socket,
-        // 	reader: socket
-        // };
-        // return Promise.resolve(result);
     }
 
     // Create the language client and start the client.
@@ -102,13 +103,6 @@ export async function activate(context: ExtensionContext) {
 
     // Start the client. This will also launch the server
     client.start()
-
-    // client.onReady().then(() => {
-    // 	client.onRequest('sourceOpen', (path: string, name: string) => {
-
-    // 		return 2;
-    // 	});
-    // });
 
     let clientPromise = new Promise<LanguageClient>((resolve, reject) => {
         client.onReady().then(
@@ -140,7 +134,7 @@ async function promptLSPath(): Promise<string> {
     }
 
     let value = await window.showInputBox(options)
-	value = path.normalize(value);
+    value = path.normalize(value);
     workspace.getConfiguration('xlang').update('lsPath', value, ConfigurationTarget.Global)
     return value
 }
@@ -210,7 +204,7 @@ class LsifFS implements FileSystemProvider {
         options: { recursive: boolean; excludes: string[] }
     ): Disposable {
         // The LSIF file systrem never changes.
-        return Disposable.create((): void => {})
+        return Disposable.create((): void => { })
     }
 
     async stat(uri: Uri): Promise<FileStat> {

@@ -47,9 +47,11 @@ impl Parser {
 
     pub fn parse_primary_expression(&self) -> Option<Expression> {
         if let Some(Token::Operator(Operator::OpenParen)) = self.tokens.peek() {
+            let state = self.save_state();
             if let Some(func) = self.parse_function() {
                 return Some(func);
             }
+            state.restore(&self.tokens);
 
             let _open = self.tokens.next().unwrap();
             let expr = self.parse_expression(0);
@@ -77,31 +79,41 @@ impl Parser {
 
     pub fn parse_function(&self) -> Option<Expression> {
         let parameters = self.parse_parameters();
-        let arrow = self.expect_operator(Operator::Arrow).cloned();
-        let return_parameters = self.parse_parameters();
 
-        match (parameters, arrow, return_parameters) {
-            (Some(parameters), Some(arrow), Some(return_parameters)) => {
-                if let Some((comma, body)) = self.parse_function_body() {
-                    Some(Expression::Function {
-                        parameters,
-                        arrow,
-                        return_parameters,
-                        comma,
-                        body: Some(body),
-                    })
-                } else {
-                    Some(Expression::Function {
-                        parameters,
-                        arrow,
-                        return_parameters,
-                        comma: None,
-                        body: None,
-                    })
+        let parameters = if let Some(Token::Operator(Operator::Arrow)) = self.tokens.peek() {
+            let arrow = self.tokens.next().unwrap().clone();
+            let return_parameters = self.parse_parameters();
+
+            match (parameters, return_parameters) {
+                (Some(parameters), Some(return_parameters)) => {
+                    if let Some((comma, body)) = self.parse_function_body() {
+                        return Some(Expression::Function {
+                            parameters,
+                            arrow,
+                            return_parameters,
+                            comma,
+                            body: Some(body),
+                        });
+                    } else {
+                        return Some(Expression::Function {
+                            parameters,
+                            arrow,
+                            return_parameters,
+                            comma: None,
+                            body: None,
+                        });
+                    }
                 }
+                (l, _) => l
             }
-            (Some(parameters), None, None) => Some(Expression::Record { parameters }),
-            _ => None,
+        } else {
+            parameters
+        };
+
+        if let Some(parameters) = parameters {
+            Some(Expression::Record { parameters })
+        } else {
+            None
         }
     }
 
@@ -129,6 +141,8 @@ impl Parser {
                     )),
                     range: Range::default(),
                 });
+                stmts.push(stmt, comma);
+                return Some((first_comma, stmts));
             }
             stmts.push(stmt, comma);
         }
@@ -204,7 +218,7 @@ impl Parser {
                     width: 64,
                     token: self.tokens.next().unwrap().clone(),
                 }),
-                _ => None,
+                _ => Some(Type::Ident(self.tokens.next().unwrap().clone())),
             },
             _ => None,
         }
@@ -212,13 +226,14 @@ impl Parser {
 
     pub fn precedence_of_operator(&self, operator: &Operator) -> u32 {
         match operator {
-            Operator::Plus => 1,
-            Operator::Minus => 1,
-            Operator::Multiply => 2,
-            Operator::Divide => 2,
-            Operator::Exponent => 3,
-            Operator::Dot => 4,
-            Operator::OpenParen => 5,
+            Operator::Equals => 1,
+            Operator::Plus => 2,
+            Operator::Minus => 2,
+            Operator::Multiply => 3,
+            Operator::Divide => 3,
+            Operator::Exponent => 4,
+            Operator::Dot => 5,
+            Operator::OpenParen => 6,
             _ => 0, // TODO: error
         }
     }

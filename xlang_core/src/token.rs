@@ -22,7 +22,7 @@ pub enum Operator {
     Multiply,
     Divide,
     Exponent,
-
+    Equals,
 }
 
 impl Operator {
@@ -45,6 +45,7 @@ impl Operator {
             Self::Multiply => "`*`",
             Self::Divide => "`/`",
             Self::Exponent => "`**`",
+            Self::Equals => "`=`",
         }
     }
 }
@@ -93,6 +94,14 @@ impl NodeDisplay for Token {
     }
 }
 
+pub struct TokenIndex(usize);
+
+impl TokenIndex {
+    pub fn restore(self, ts: &TokenStream) {
+        *ts.next_index.write().unwrap() = self.0;
+    }
+}
+
 #[derive(Debug)]
 pub struct TokenStream {
     tokens: Vec<SpannedToken>,
@@ -122,6 +131,10 @@ impl<'a> TokenStream {
     pub fn back(&'a self) {
         let mut s = self.next_index.write().unwrap();
         *s -= 1;
+    }
+
+    pub fn get_index(&'a self) -> TokenIndex {
+        TokenIndex(*self.next_index.read().unwrap())
     }
 }
 

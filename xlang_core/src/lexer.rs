@@ -97,6 +97,7 @@ impl Lexer {
                     _ => return Some(Token::Operator(Operator::Multiply)),
                 },
                 Some('/') => return Some(Token::Operator(Operator::Divide)),
+                Some('=') => return Some(Token::Operator(Operator::Equals)),
 
                 Some('\r' | '\n') => return Some(Token::Newline),
                 Some(c) if c.is_whitespace() => return Some(Token::Whitespace),
