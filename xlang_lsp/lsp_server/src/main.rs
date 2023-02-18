@@ -178,7 +178,20 @@ impl Backend {
                 }
             }
             Expression::FunctionCall { expr, args } => {
-                self.recurse_expression(expr, module, scope_index, builder);
+                match &**expr {
+                    Expression::Ident(tok) => {
+                        builder.push(
+                            tok.span().line_num,
+                            tok.span().position,
+                            tok.span().length,
+                            get_stype_index(SemanticTokenType::FUNCTION),
+                            0,
+                        );
+                    }
+                    _ => {
+                        self.recurse_expression(expr, module, scope_index, builder);
+                    }
+                }
 
                 self.recurse_args(module, args, scope_index, builder);
             }
