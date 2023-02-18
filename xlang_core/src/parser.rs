@@ -3,7 +3,7 @@ use std::sync::{RwLock, RwLockReadGuard};
 use crate::{
     ast::{ArgList, Param, ParamaterList, PunctuationList, Statement},
     error::{ParseError, ParseErrorKind},
-    token::{Operator, Range, SpannedToken, Token, TokenStream, TokenIndex},
+    token::{Operator, Range, SpannedToken, Token, TokenIndex, TokenStream},
 };
 
 pub struct Parser {

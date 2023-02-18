@@ -104,7 +104,7 @@ impl Parser {
                         });
                     }
                 }
-                (l, _) => l
+                (l, _) => l,
             }
         } else {
             parameters

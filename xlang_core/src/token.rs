@@ -1,7 +1,6 @@
-use std::{sync::RwLock, fmt::Display};
+use std::{fmt::Display, sync::RwLock};
 
 use xlang_util::format::{NodeDisplay, TreeDisplay};
-
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Operator {
@@ -55,17 +54,16 @@ pub enum Keyword {
     // Output,
 }
 
-
 #[derive(Debug, Clone, Copy)]
 pub enum Unit {
-    Pixel
+    Pixel,
 }
 
 impl Display for Unit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-       match self {
-            Unit::Pixel => f.write_str("px") 
-       } 
+        match self {
+            Unit::Pixel => f.write_str("px"),
+        }
     }
 }
 

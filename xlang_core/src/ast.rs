@@ -1,6 +1,6 @@
-use std::{fmt::Debug, ops::Index};
+use std::fmt::Debug;
 
-use xlang_util::format::{NodeDisplay, TreeDisplay, Grouper};
+use xlang_util::format::{Grouper, NodeDisplay, TreeDisplay};
 
 use crate::token::{Range, SpannedToken, Token, Unit};
 
@@ -121,7 +121,12 @@ where
         } else {
             0
         };
-        Box::new(Grouper(format!("Index::::::{} {} {}", _index, sz, self.tokens.len())))
+        Box::new(Grouper(format!(
+            "Index::::::{} {} {}",
+            _index,
+            sz,
+            self.tokens.len()
+        )))
     }
 }
 

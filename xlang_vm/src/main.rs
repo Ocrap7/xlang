@@ -1,6 +1,6 @@
 use std::{fs::File, io::Read};
 
-use xlang_core::Module;
+use xlang_core::{Module};
 
 fn main() {
     let mut file = File::open("test_files/test.xl").unwrap();
@@ -10,3 +10,4 @@ fn main() {
 
     let _parsed = Module::parse_str(&input);
 }
+
