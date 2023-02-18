@@ -30,6 +30,9 @@ impl Module {
 
         let parser = Parser::new(tokens);
         let parsed = parser.parse().unwrap();
+        for p in &parsed {
+            println!("{}", p.format());
+        }
 
         let er = parser.get_errors().clone();
 

@@ -24,11 +24,15 @@ pub enum Type {
     },
     Ident(String),
     Tuple(Vec<Type>),
+    RecordInstance {
+        members: HashMap<String, Type>,
+    },
 }
 
 impl NodeDisplay for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            Self::RecordInstance { .. } => write!(f, "Record Instance"),
             Self::Tuple(_) => write!(f, "Tuple"),
             Self::Empty => write!(f, "Empty"),
             Self::CoercibleInteger => write!(f, "Coercible Integer"),
@@ -59,6 +63,7 @@ impl TreeDisplay for Type {
         match self {
             Type::Function { .. } => 2,
             Type::Tuple(tu) => tu.len(),
+            Type::RecordInstance { members } => members.len(),
             _ => 0,
         }
     }
@@ -80,7 +85,15 @@ impl TreeDisplay for Type {
                     None
                 }
             }
+            Type::RecordInstance { .. } => None,
             _ => None,
+        }
+    }
+
+    fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
+        match self {
+            Type::RecordInstance { members } => members.child_at_bx(_index),
+            _ => panic!(),
         }
     }
 }
@@ -88,10 +101,19 @@ impl TreeDisplay for Type {
 #[derive(Clone)]
 pub enum ConstValueKind {
     Empty,
-    Integer { value: u64 },
-    Float { value: f64 },
-    Function { body: Statement },
+    Integer {
+        value: u64,
+    },
+    Float {
+        value: f64,
+    },
+    Function {
+        body: Statement,
+    },
     Tuple(Vec<ConstValue>),
+    RecordInstance {
+        members: HashMap<String, ConstValue>,
+    },
 }
 
 impl Display for ConstValueKind {
@@ -110,6 +132,19 @@ impl Display for ConstValueKind {
                 for item in iter {
                     write!(f, ", {}", item.kind)?;
                 }
+                Ok(())
+            }
+            ConstValueKind::RecordInstance { members } => {
+                let mut iter = members.iter();
+                write!(f, "{{ ")?;
+                let Some(item) = iter.next() else {
+                    return writeln!(f, "() }}");
+                };
+                write!(f, "{}: {}", item.0, item.1)?;
+                for item in iter {
+                    write!(f, ", {}: {}", item.0, item.1)?;
+                }
+                write!(f, " }}")?;
                 Ok(())
             }
         }
@@ -131,6 +166,13 @@ impl ConstValueKind {
         }
     }
 
+    pub fn as_record_instance(&self) -> &HashMap<String, ConstValue> {
+        match self {
+            ConstValueKind::RecordInstance { members } => members,
+            _ => panic!()
+        }
+    }
+
     pub fn as_empty(&self) -> bool {
         match self {
             ConstValueKind::Empty => true,
@@ -147,6 +189,7 @@ impl NodeDisplay for ConstValueKind {
             ConstValueKind::Float { value } => write!(f, "Float: {}", value),
             ConstValueKind::Function { .. } => write!(f, "Function"),
             ConstValueKind::Tuple(_) => write!(f, "Tuple"),
+            ConstValueKind::RecordInstance { .. } => write!(f, "Record Instance"),
         }
     }
 }
@@ -156,6 +199,7 @@ impl TreeDisplay for ConstValueKind {
         match self {
             ConstValueKind::Function { .. } => 1,
             ConstValueKind::Tuple(list) => list.len(),
+            ConstValueKind::RecordInstance { members } => members.len(),
             _ => 0,
         }
     }
@@ -173,7 +217,15 @@ impl TreeDisplay for ConstValueKind {
                     None
                 }
             }
+            ConstValueKind::RecordInstance { .. } => None,
             _ => None,
+        }
+    }
+
+    fn child_at_bx<'a>(&'a self, index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
+        match self {
+            ConstValueKind::RecordInstance { members } => members.child_at_bx(index),
+            _ => panic!(),
         }
     }
 }
@@ -200,10 +252,7 @@ impl ConstValue {
             _ => ConstValueKind::Empty,
         };
 
-        ConstValue {
-            ty,
-            kind,
-        }
+        ConstValue { ty, kind }
     }
 
     pub fn integer(value: u64, width: u8, signed: bool) -> ConstValue {
@@ -253,6 +302,16 @@ impl ConstValue {
         ConstValue {
             kind: ConstValueKind::Tuple(values),
             ty: Type::Tuple(types),
+        }
+    }
+
+    pub fn record_instance(values: HashMap<String, ConstValue>) -> ConstValue {
+        let types = values.values().map(|val| val.ty.clone());
+        let ty = HashMap::from_iter(values.keys().cloned().zip(types));
+
+        ConstValue {
+            ty: Type::RecordInstance { members: ty },
+            kind: ConstValueKind::RecordInstance { members: values },
         }
     }
 }

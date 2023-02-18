@@ -1,4 +1,6 @@
 
 func: (i8 a) -> (i8 b, i8 c), b = a, c = a * 2
 
-func(7)
+res: func(7)
+
+res.c
