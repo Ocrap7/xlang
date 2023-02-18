@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use xlang_util::format::{Grouper, NodeDisplay, TreeDisplay};
+use xlang_util::format::{NodeDisplay, StringFormatter, TreeDisplay};
 
 use crate::token::{Range, SpannedToken, Token, Unit};
 
@@ -121,7 +121,7 @@ where
         } else {
             0
         };
-        Box::new(Grouper(format!(
+        Box::new(StringFormatter(format!(
             "Index::::::{} {} {}",
             _index,
             sz,
@@ -358,7 +358,7 @@ pub enum Expression {
         arrow: SpannedToken,
         return_parameters: ParamaterList,
         comma: Option<SpannedToken>,
-        body: Option<PunctuationList<Statement>>,
+        body: Option<Box<Statement>>,
     },
     Record {
         parameters: ParamaterList,
@@ -485,7 +485,7 @@ impl TreeDisplay for Expression {
             } => match index {
                 0 => Some(parameters),
                 1 => Some(return_parameters),
-                2 => Some(body),
+                2 => Some(&**body),
                 _ => None,
             },
             Self::Function {
@@ -532,6 +532,7 @@ pub enum Statement {
         token: Option<SpannedToken>,
         args: PunctuationList<SpannedToken>,
     },
+    List(PunctuationList<Statement>),
 }
 
 impl AstNode for Statement {
@@ -546,6 +547,7 @@ impl AstNode for Statement {
                 Some((tok, _)) => Range::from((*token.span(), *tok.span())),
                 _ => Range::from(*token.span()),
             },
+            Self::List(list) => list.get_range(),
             _ => Range::default(),
         }
     }
@@ -563,6 +565,7 @@ impl TreeDisplay for Statement {
             Self::Decleration { .. } => 2,
             Self::UseStatement { token, args } => addup!(token) + args.num_children(), // Self::Expression(_) => 1,
             Self::Expression(_) => 1,
+            Self::List(list) => list.num_children(),
         }
     }
 
@@ -583,6 +586,7 @@ impl TreeDisplay for Statement {
                 args.child_at(index - ind)
             }
             Self::Expression(e) => Some(e),
+            Self::List(list) => list.child_at(index),
         }
     }
 

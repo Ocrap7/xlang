@@ -172,9 +172,9 @@ impl Backend {
                 self.recurse_params(module, return_parameters, scope_index, builder);
 
                 if let Some(body) = body {
-                    for item in body.iter_items() {
-                        self.recurse(module, item, scope_index, builder);
-                    }
+                    // for item in body.iter_items() {
+                    self.recurse(module, body, scope_index, builder);
+                    // }
                 }
             }
             Expression::FunctionCall { expr, args } => {
@@ -297,6 +297,11 @@ impl Backend {
         builder: &mut SemanticTokenBuilder,
     ) {
         match stmt {
+            Statement::List(list) => {
+                for l in list.iter_items() {
+                    self.recurse(module, l, scope_index, builder);
+                }
+            }
             Statement::Decleration { ident, expr, .. } => {
                 let func = match expr {
                     Some(Expression::Function { .. }) => get_stype_index_from_str("function"),
@@ -363,7 +368,7 @@ impl Backend {
                     if let Some(sym) = module.resolve_symbol_chain(args.iter_items()) {
                         println!("Use {}", sym.borrow().name);
                         let mut comp = Vec::new();
-                        
+
                         return Some(comp);
                     }
                 }

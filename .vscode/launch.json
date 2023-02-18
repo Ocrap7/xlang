@@ -20,24 +20,6 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in library 'xlang_lsp'",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=lsp_server",
-                    "--package=lsp_server"
-                ],
-                "filter": {
-                    "name": "lsp_server",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
             "name": "Debug unit tests in library 'xlang_core'",
             "cargo": {
                 "args": [
@@ -104,6 +86,80 @@
                 ],
                 "filter": {
                     "name": "xlang_compiler",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'xlang_vm'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=xlang_vm",
+                    "--package=xlang_vm"
+                ],
+                "filter": {
+                    "name": "xlang_vm",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'xlang_vm'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=xlang_vm",
+                    "--package=xlang_vm"
+                ],
+                "filter": {
+                    "name": "xlang_vm",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'lsp_server'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=lsp_server",
+                    "--package=lsp_server"
+                ],
+                "filter": {
+                    "name": "lsp_server",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'lsp_server'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=lsp_server",
+                    "--package=lsp_server"
+                ],
+                "filter": {
+                    "name": "lsp_server",
                     "kind": "bin"
                 }
             },

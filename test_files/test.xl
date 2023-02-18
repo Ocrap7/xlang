@@ -1,6 +1,4 @@
 
-data: (i8 a)
+func: (i8 a) -> (i8 b), b = a
 
-func: (data dat) -> (i8 b), b = ((dat.a * 2) / 8) ** 2
-
-result: func(7)
+func(7)

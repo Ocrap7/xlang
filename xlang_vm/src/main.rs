@@ -2,6 +2,7 @@ use std::{fs::File, io::Read};
 
 use evaluator::Evaluator;
 use xlang_core::Module;
+use xlang_util::format::TreeDisplay;
 
 mod const_value;
 mod evaluator;
@@ -20,5 +21,9 @@ fn main() {
 
     let evaluator = Evaluator::new(module);
 
-    evaluator.evaluate();
+    let values = evaluator.evaluate();
+
+    for value in values {
+        println!("{}", value.format());
+    }
 }

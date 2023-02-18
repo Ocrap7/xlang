@@ -1,21 +1,32 @@
-use std::fmt::{Debug, Write};
+use std::{collections::HashMap, fmt::Debug};
 
 use xlang_core::ast::Statement;
 use xlang_util::format::{NodeDisplay, TreeDisplay};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum Type {
     Empty,
     CoercibleInteger,
     CoercibleFloat,
-    Integer { width: u8, signed: bool },
-    Float { width: u8 },
+    Integer {
+        width: u8,
+        signed: bool,
+    },
+    Float {
+        width: u8,
+    },
+    Function {
+        parameters: HashMap<String, Type>,
+        return_parameters: HashMap<String, Type>,
+    },
     Ident(String),
+    Tuple(Vec<Type>),
 }
 
 impl NodeDisplay for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            Self::Tuple(_) => write!(f, "Tuple"),
             Self::Empty => write!(f, "Empty"),
             Self::CoercibleInteger => write!(f, "Coercible Integer"),
             Self::CoercibleFloat => write!(f, "Coercible Float"),
@@ -28,6 +39,7 @@ impl NodeDisplay for Type {
                 width,
                 signed: false,
             } => write!(f, "u{}", width),
+            Self::Function { .. } => f.write_str("Function"),
             Self::Ident(ident) => f.write_str(ident),
         }
     }
@@ -41,28 +53,42 @@ impl Debug for Type {
 
 impl TreeDisplay for Type {
     fn num_children(&self) -> usize {
-        0
+        match self {
+            Type::Function { .. } => 2,
+            Type::Tuple(tu) => tu.len(),
+            _ => 0,
+        }
     }
 
     fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay> {
-        None
+        match self {
+            Type::Function {
+                parameters,
+                return_parameters,
+            } => match _index {
+                0 => Some(parameters),
+                1 => Some(return_parameters),
+                _ => None,
+            },
+            Type::Tuple(tu) => {
+                if let Some(ty) = tu.get(_index) {
+                    Some(ty)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
     }
 }
 
 #[derive(Clone)]
 pub enum ConstValueKind {
     Empty,
-    Integer {
-        value: u64,
-    },
-    Float {
-        value: f64,
-    },
-    Function {
-        parameters: Vec<ConstValue>,
-        return_parameters: Vec<ConstValue>,
-        body: Statement,
-    },
+    Integer { value: u64 },
+    Float { value: f64 },
+    Function { body: Statement },
+    Tuple(Vec<ConstValue>),
 }
 
 impl ConstValueKind {
@@ -95,6 +121,7 @@ impl NodeDisplay for ConstValueKind {
             ConstValueKind::Integer { value } => write!(f, "Integer: {}", value),
             ConstValueKind::Float { value } => write!(f, "Float: {}", value),
             ConstValueKind::Function { .. } => write!(f, "Function"),
+            ConstValueKind::Tuple(_) => write!(f, "Tuple"),
         }
     }
 }
@@ -102,23 +129,25 @@ impl NodeDisplay for ConstValueKind {
 impl TreeDisplay for ConstValueKind {
     fn num_children(&self) -> usize {
         match self {
-            ConstValueKind::Function { .. } => 3,
+            ConstValueKind::Function { .. } => 1,
+            ConstValueKind::Tuple(list) => list.len(),
             _ => 0,
         }
     }
 
     fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay<()>> {
         match self {
-            ConstValueKind::Function {
-                parameters,
-                return_parameters,
-                body,
-            } => match index {
-                0 => Some(parameters),
-                1 => Some(return_parameters),
-                2 => Some(body),
+            ConstValueKind::Function { body } => match index {
+                0 => Some(body),
                 _ => None,
             },
+            ConstValueKind::Tuple(tu) => {
+                if let Some(val) = tu.get(index) {
+                    Some(val)
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
@@ -163,6 +192,28 @@ impl ConstValue {
         ConstValue {
             kind: ConstValueKind::Float { value },
             ty: Type::CoercibleFloat,
+        }
+    }
+
+    pub fn func(
+        body: Statement,
+        parameters: HashMap<String, Type>,
+        return_parameters: HashMap<String, Type>,
+    ) -> ConstValue {
+        ConstValue {
+            kind: ConstValueKind::Function { body },
+            ty: Type::Function {
+                parameters,
+                return_parameters,
+            },
+        }
+    }
+
+    pub fn tuple(values: Vec<ConstValue>) -> ConstValue {
+        let types: Vec<_> = values.iter().map(|val| val.ty.clone()).collect();
+        ConstValue {
+            kind: ConstValueKind::Tuple(values),
+            ty: Type::Tuple(types),
         }
     }
 }

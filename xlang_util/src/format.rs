@@ -1,5 +1,6 @@
 use std::{
     cell::{Ref, RefCell},
+    collections::HashMap,
     fmt,
     sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
 };
@@ -194,15 +195,51 @@ pub trait TreeDisplay<U = ()>: NodeDisplay + AsTrait<U> {
     }
 }
 
-pub struct Grouper(pub String);
+pub struct Grouper<'a>(pub String, pub &'a dyn TreeDisplay);
 
-impl NodeDisplay for Grouper {
+impl<'a> NodeDisplay for Grouper<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl<'a> TreeDisplay for Grouper<'a> {
+    fn num_children(&self) -> usize {
+        1
+    }
+
+    fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<()>> {
+        Some(self.1)
+    }
+}
+
+pub struct BoxedGrouper(pub String, pub Box<dyn TreeDisplay>);
+
+impl NodeDisplay for BoxedGrouper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl TreeDisplay for BoxedGrouper {
+    fn num_children(&self) -> usize {
+        1
+    }
+
+    fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<()>> {
+        Some(&*self.1)
+    }
+}
+
+pub struct StringFormatter(pub String);
+
+impl NodeDisplay for StringFormatter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl TreeDisplay for Grouper {
+impl TreeDisplay for StringFormatter {
     fn num_children(&self) -> usize {
         0
     }
@@ -225,6 +262,27 @@ impl<'a, T: TreeDisplay + 'a> TreeDisplay for Vec<T> {
 
     fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay> {
         Some(&self[index])
+    }
+}
+
+impl<'a, T: NodeDisplay + 'a> NodeDisplay for HashMap<String, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("HashMap")
+    }
+}
+
+impl<'b, T: TreeDisplay + 'b> TreeDisplay for HashMap<String, T> {
+    fn num_children(&self) -> usize {
+        self.len()
+    }
+
+    fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay> {
+        None
+    }
+
+    fn child_at_bx<'a>(&'a self, index: usize) -> Box<dyn TreeDisplay + 'a> {
+        let (name, item) = self.iter().nth(index).unwrap();
+        Box::new(Grouper(name.clone(), item))
     }
 }
 

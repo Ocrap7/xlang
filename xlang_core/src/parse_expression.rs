@@ -92,7 +92,7 @@ impl Parser {
                             arrow,
                             return_parameters,
                             comma,
-                            body: Some(body),
+                            body: Some(Box::new(Statement::List(body))),
                         });
                     } else {
                         return Some(Expression::Function {
