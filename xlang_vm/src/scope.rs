@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use xlang_util::format::{Grouper, NodeDisplay, TreeDisplay};
 
@@ -7,9 +7,7 @@ use crate::const_value::{ConstValue, Type};
 #[derive(Clone)]
 pub enum ScopeValue {
     ConstValue(ConstValue),
-    Record {
-        members: HashMap<String, Type>,
-    },
+    Record { members: HashMap<String, Type> },
 }
 
 impl NodeDisplay for ScopeValue {
@@ -33,7 +31,6 @@ impl TreeDisplay for ScopeValue {
         match self {
             ScopeValue::ConstValue(c) => c.child_at(index),
             ScopeValue::Record { members } => Some(members),
-            _ => None,
         }
     }
 }

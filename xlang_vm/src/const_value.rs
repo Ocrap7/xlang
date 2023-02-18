@@ -1,4 +1,7 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+};
 
 use xlang_core::ast::Statement;
 use xlang_util::format::{NodeDisplay, TreeDisplay};
@@ -89,6 +92,28 @@ pub enum ConstValueKind {
     Float { value: f64 },
     Function { body: Statement },
     Tuple(Vec<ConstValue>),
+}
+
+impl Display for ConstValueKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConstValueKind::Empty => f.write_str("()"),
+            ConstValueKind::Integer { value } => write!(f, "{}", value),
+            ConstValueKind::Float { value } => write!(f, "{}", value),
+            ConstValueKind::Function { body } => write!(f, "{}", body.format()),
+            ConstValueKind::Tuple(list) => {
+                let mut iter = list.iter();
+                let Some(item) = iter.next() else {
+                    return writeln!(f, "()");
+                };
+                write!(f, "{}", item.kind)?;
+                for item in iter {
+                    write!(f, ", {}", item.kind)?;
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 impl ConstValueKind {
@@ -215,6 +240,12 @@ impl ConstValue {
             kind: ConstValueKind::Tuple(values),
             ty: Type::Tuple(types),
         }
+    }
+}
+
+impl Display for ConstValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.kind, f)
     }
 }
 

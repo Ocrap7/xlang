@@ -110,11 +110,19 @@ impl Evaluator {
             }
             Statement::Expression(expr) => return self.evaluate_expression(expr),
             Statement::List(list) => {
-                let values: Vec<_> = list
-                    .iter_items()
-                    .map(|stmt| self.evaluate_statement(stmt))
-                    .collect();
-                return ConstValue::tuple(values);
+                if list.num_children() == 1 {
+                    let item = list
+                        .iter_items()
+                        .next()
+                        .expect("Value should have been present. This is probably a rustc bug");
+                    return self.evaluate_statement(item);
+                } else {
+                    let values: Vec<_> = list
+                        .iter_items()
+                        .map(|stmt| self.evaluate_statement(stmt))
+                        .collect();
+                    return ConstValue::tuple(values);
+                }
             }
             _ => (),
         }
