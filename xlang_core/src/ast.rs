@@ -262,6 +262,33 @@ pub enum Type {
     Ident(SpannedToken),
 }
 
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Integer {
+                    width: l_width,
+                    signed: l_signed,
+                    ..
+                },
+                Self::Integer {
+                    width: r_width,
+                    signed: r_signed,
+                    ..
+                },
+            ) => l_width == r_width && l_signed == r_signed,
+            (Self::Float { width: l_width, .. }, Self::Float { width: r_width, .. }) => {
+                l_width == r_width
+            }
+            (
+                Self::Ident(SpannedToken(_, Token::Ident(a))),
+                Self::Ident(SpannedToken(_, Token::Ident(b))),
+            ) => a == b,
+            _ => false,
+        }
+    }
+}
+
 impl AstNode for Type {
     fn get_range(&self) -> Range {
         match self {

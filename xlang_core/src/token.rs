@@ -44,6 +44,7 @@ impl Operator {
             Self::Multiply => "`*`",
             Self::Divide => "`/`",
             Self::Exponent => "`**`",
+
             Self::Equals => "`=`",
         }
     }

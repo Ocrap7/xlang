@@ -327,13 +327,6 @@ impl Backend {
                 }
 
                 module.iter_symbol(args.iter_items(), |name, val| match val.borrow().kind {
-                    SymbolKind::Style { .. } => builder.push(
-                        name.span().line_num,
-                        name.span().position,
-                        name.span().length,
-                        get_stype_index_from_str("type"),
-                        0,
-                    ),
                     _ => {
                         builder.push(
                             name.span().line_num,
@@ -370,21 +363,7 @@ impl Backend {
                     if let Some(sym) = module.resolve_symbol_chain(args.iter_items()) {
                         println!("Use {}", sym.borrow().name);
                         let mut comp = Vec::new();
-                        for (name, sym) in &sym.borrow().children {
-                            match &sym.borrow().kind {
-                                SymbolKind::Node { .. } => comp.push(CompletionItem {
-                                    label: name.clone(),
-                                    kind: Some(CompletionItemKind::MODULE),
-                                    ..Default::default()
-                                }),
-                                SymbolKind::Style { .. } => comp.push(CompletionItem {
-                                    label: name.clone(),
-                                    kind: Some(CompletionItemKind::STRUCT),
-                                    ..Default::default()
-                                }),
-                                _ => (),
-                            }
-                        }
+                        
                         return Some(comp);
                     }
                 }

@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use ast::{Expression, Statement};
+use ast::{Expression, ParamaterList, Statement, Type};
 use lexer::Lexer;
 use linked_hash_map::LinkedHashMap;
 use log::{Log, SetLoggerError};
@@ -40,25 +40,63 @@ impl Module {
         let er = parser.get_errors().clone();
 
         let mods = Symbol::new_root();
-        let md = ModuleDescender::new(mods.clone()).with_on_statement(|st, ud| {
-            match st {
-                Statement::UseStatement { args, .. } => {
-                    let res: Option<Vec<String>> = args
-                        .iter_items()
-                        .map(|a| match a {
-                            SpannedToken(_, Token::Ident(i)) => Some(i.clone()),
-                            _ => None,
-                        })
-                        .collect();
-                    if let Some(res) = res {
-                        let cd = Symbol::insert(&ud, &"use", SymbolKind::Use(res));
-                        return (cd, ud);
+        let md = ModuleDescender::new(mods.clone())
+            .with_on_parameters(|params, ud| {
+                for param in params.iter_items() {
+                    if let (Some(SpannedToken(_, Token::Ident(ident))), Some(ty)) =
+                        (&param.name, &param.ty)
+                    {
+                        Symbol::insert(&ud, &ident, SymbolKind::Parameter { ty: ty.clone() });
                     }
                 }
-                _ => (),
-            }
-            (ud.clone(), ud)
-        });
+                ud
+            })
+            .with_on_return_parameters(|params, ud| {
+                for param in params.iter_items() {
+                    if let (Some(SpannedToken(_, Token::Ident(ident))), Some(ty)) =
+                        (&param.name, &param.ty)
+                    {
+                        Symbol::insert(&ud, &ident, SymbolKind::ReturnParameter { ty: ty.clone() });
+                    }
+                }
+                ud
+            })
+            .with_on_statement(|st, ud| {
+                match st {
+                    Statement::Decleration {
+                        ident: SpannedToken(_, Token::Ident(id)),
+                        expr,
+                        ..
+                    } => {
+                        let cd = match expr {
+                            Some(Expression::Record { .. }) => {
+                                Symbol::insert(&ud, id, SymbolKind::Record)
+                            }
+                            Some(Expression::Function { .. }) => {
+                                Symbol::insert(&ud, id, SymbolKind::Function {})
+                            }
+                            _ => Symbol::insert(&ud, id, SymbolKind::Variable {}),
+                        };
+
+                        return (cd, ud);
+                    }
+                    Statement::UseStatement { args, .. } => {
+                        let res: Option<Vec<String>> = args
+                            .iter_items()
+                            .map(|a| match a {
+                                SpannedToken(_, Token::Ident(i)) => Some(i.clone()),
+                                _ => None,
+                            })
+                            .collect();
+                        if let Some(res) = res {
+                            let cd = Symbol::insert(&ud, &"use", SymbolKind::Use(res));
+                            return (cd, ud);
+                        }
+                    }
+                    _ => (),
+                }
+                (ud.clone(), ud)
+            });
 
         md.descend(&parsed);
 
@@ -111,7 +149,6 @@ impl Module {
     ) -> Option<Rf<Symbol>> {
         let nodev = node.borrow();
         match nodev.kind {
-            SymbolKind::Style { .. } if nodev.name == symbol => return Some(node.clone()),
             SymbolKind::Use(_) => return None,
             _ => (),
         }
@@ -243,37 +280,12 @@ impl Module {
     }
 }
 
-pub enum Type {
-    None,
-    Float,
-    Integer,
-    Ident(String),
-    Tuple(Vec<Type>),
-}
-
-impl Type {
-    pub fn value_is_type(&self, value: &Expression) -> bool {
-        match (self, value) {
-            (Type::Float, Expression::Float(_, _, _)) => true,
-            (Type::Integer, Expression::Integer(_, _, _)) => true,
-            _ => false,
-        }
-    }
-}
-
 pub enum SymbolKind {
-    Text(String),
-    Node {
-        args: HashMap<String, Expression>,
-    },
-    Function {
-        args: Vec<Type>,
-        return_type: Type,
-        func: Box<dyn Fn(Vec<Expression>) -> Option<Expression> + Send + Sync>,
-    },
-    Style {
-        properties: HashMap<String, Expression>,
-    },
+    Record,
+    Function,
+    Variable,
+    Parameter { ty: Type },
+    ReturnParameter { ty: Type },
     Use(Vec<String>),
     Root,
 }
@@ -289,10 +301,11 @@ impl NodeDisplay for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match &self.kind {
             SymbolKind::Root => f.write_str("Root"),
+            SymbolKind::Record { .. } => write!(f, "Record `{}`", self.name),
             SymbolKind::Function { .. } => write!(f, "Function `{}`", self.name),
-            SymbolKind::Text(s) => write!(f, "Text `{}`", s),
-            SymbolKind::Node { .. } => write!(f, "Node `{}`", self.name),
-            SymbolKind::Style { .. } => write!(f, "Style `{}`", self.name),
+            SymbolKind::Variable { .. } => write!(f, "Variable `{}`", self.name),
+            SymbolKind::Parameter { .. } => write!(f, "Parameter `{}`", self.name),
+            SymbolKind::ReturnParameter { .. } => write!(f, "Return Parameter`{}`", self.name),
             SymbolKind::Use(_) => write!(f, "Use"),
         }
     }
@@ -300,11 +313,19 @@ impl NodeDisplay for Symbol {
 
 impl TreeDisplay for Symbol {
     fn num_children(&self) -> usize {
-        self.children.len()
+        match &self.kind {
+            SymbolKind::Parameter { .. } => 1,
+            SymbolKind::ReturnParameter { .. } => 1,
+            _ => self.children.len(),
+        }
     }
 
     fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay> {
-        None
+        match &self.kind {
+            SymbolKind::Parameter { ty } => Some(ty),
+            SymbolKind::ReturnParameter { ty } => Some(ty),
+            _ => None,
+        }
     }
 
     fn child_at_bx<'a>(&'a self, index: usize) -> Box<dyn TreeDisplay + 'a> {
@@ -380,6 +401,8 @@ pub struct ModuleDescender<U: Clone> {
     user_data: U,
     on_statement: Option<Box<dyn FnMut(&Statement, U) -> (U, U)>>,
     on_expression: Option<Box<dyn FnMut(&Expression, U) -> U>>,
+    on_parameters: Option<Box<dyn FnMut(&ParamaterList, U) -> U>>,
+    on_return_parameters: Option<Box<dyn FnMut(&ParamaterList, U) -> U>>,
 }
 
 impl<U: Clone> ModuleDescender<U> {
@@ -388,6 +411,8 @@ impl<U: Clone> ModuleDescender<U> {
             user_data,
             on_statement: None,
             on_expression: None,
+            on_parameters: None,
+            on_return_parameters: None,
         }
     }
 
@@ -407,6 +432,22 @@ impl<U: Clone> ModuleDescender<U> {
         self
     }
 
+    pub fn with_on_parameters(
+        mut self,
+        on_parameters: impl FnMut(&ParamaterList, U) -> U + 'static,
+    ) -> ModuleDescender<U> {
+        self.on_parameters = Some(Box::new(on_parameters));
+        self
+    }
+
+    pub fn with_on_return_parameters(
+        mut self,
+        on_return_parameters: impl FnMut(&ParamaterList, U) -> U + 'static,
+    ) -> ModuleDescender<U> {
+        self.on_return_parameters = Some(Box::new(on_return_parameters));
+        self
+    }
+
     pub fn descend(mut self, node: &Vec<Statement>) -> U {
         for node in node {
             self.descend_statement(node)
@@ -415,6 +456,27 @@ impl<U: Clone> ModuleDescender<U> {
     }
 
     pub fn descend_expression(&mut self, node: &Expression) {
+        match node {
+            Expression::Function {
+                parameters,
+                return_parameters,
+                ..
+            } => {
+                if let Some(on_prm) = &mut self.on_parameters {
+                    on_prm(parameters, self.user_data.clone());
+                }
+
+                if let Some(on_prm) = &mut self.on_return_parameters {
+                    on_prm(return_parameters, self.user_data.clone());
+                }
+            }
+            Expression::Record { parameters } => {
+                if let Some(on_prm) = &mut self.on_parameters {
+                    on_prm(parameters, self.user_data.clone());
+                }
+            }
+            _ => (),
+        }
         if let Some(on_value) = &mut self.on_expression {
             self.user_data = on_value(node, self.user_data.clone())
         }

@@ -813,3 +813,11 @@ dependencies = [
 [[package]]
 name = "xlang_util"
 version = "0.1.0"
+
+[[package]]
+name = "xlang_vm"
+version = "0.1.0"
+dependencies = [
+ "xlang_core",
+ "xlang_util",
+]

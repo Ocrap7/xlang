@@ -1,6 +1,11 @@
 use std::{fs::File, io::Read};
 
-use xlang_core::{Module};
+use evaluator::Evaluator;
+use xlang_core::Module;
+
+mod const_value;
+mod evaluator;
+mod scope;
 
 fn main() {
     let mut file = File::open("test_files/test.xl").unwrap();
@@ -8,6 +13,12 @@ fn main() {
     let mut input = String::new();
     file.read_to_string(&mut input).unwrap();
 
-    let _parsed = Module::parse_str(&input);
-}
+    let (module, errors) = Module::parse_str(&input);
+    for error in errors {
+        println!("{}", error)
+    }
 
+    let evaluator = Evaluator::new(module);
+
+    evaluator.evaluate();
+}
