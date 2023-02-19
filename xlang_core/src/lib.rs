@@ -71,7 +71,7 @@ impl Module {
                                 Symbol::insert(&ud, id, SymbolKind::Function {})
                             }
                             // _ => Symbol::insert(&ud, id, SymbolKind::Variable {}),
-                            _ => ud.clone()
+                            _ => ud.clone(),
                         };
 
                         return (cd, ud);

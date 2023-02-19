@@ -29,13 +29,15 @@ impl<T> Rf<T> {
     pub fn new(t: T) -> Rf<T> {
         Rf(Arc::new(RwLock::new(t)))
     }
+}
 
+impl<T: ?Sized> Rf<T> {
     pub fn borrow_mut(&self) -> RwLockWriteGuard<'_, T> {
-        self.write().unwrap()
+        self.0.write().unwrap()
     }
 
     pub fn borrow(&self) -> RwLockReadGuard<'_, T> {
-        self.read().unwrap()
+        self.0.read().unwrap()
         // self.().unwrap()
     }
 }

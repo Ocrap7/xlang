@@ -263,25 +263,25 @@ impl ConstValue {
         ConstValue { ty, kind }
     }
 
-    pub fn scope_ref(scope: &ScopeManager, name: &str) -> ConstValue {
-        ConstValue {
-            ty: Type::Empty,
-            kind: ConstValueKind::Ref {
-                scope_ref: scope.get_symbol_ref(name).unwrap(),
-                member: None,
-            },
-        }
-    }
+    // pub fn scope_ref(scope: &ScopeManager, name: &str) -> ConstValue {
+    //     ConstValue {
+    //         ty: Type::Empty,
+    //         kind: ConstValueKind::Ref {
+    //             scope_ref: scope.get_symbol_ref(name).unwrap(),
+    //             member: None,
+    //         },
+    //     }
+    // }
 
-    pub fn member_ref(scope: &ScopeManager, name: &str, member: &str) -> ConstValue {
-        ConstValue {
-            ty: Type::Empty,
-            kind: ConstValueKind::Ref {
-                scope_ref: scope.get_symbol_ref(name).unwrap(),
-                member: Some(member.to_string()),
-            },
-        }
-    }
+    // pub fn member_ref(scope: &ScopeManager, name: &str, member: &str) -> ConstValue {
+    //     ConstValue {
+    //         ty: Type::Empty,
+    //         kind: ConstValueKind::Ref {
+    //             scope_ref: scope.get_symbol_ref(name).unwrap(),
+    //             member: Some(member.to_string()),
+    //         },
+    //     }
+    // }
 
     pub fn integer(value: u64, width: u8, signed: bool) -> ConstValue {
         ConstValue {

@@ -8,28 +8,29 @@ use xlang_core::{
     token::{Operator, SpannedToken, Token},
     Module,
 };
-use xlang_util::format::TreeDisplay;
+use xlang_util::{format::TreeDisplay, Rf};
 
 use crate::{
     const_value::{ConstValue, ConstValueKind, Type},
-    scope::{ScopeManager, ScopeValue},
+    scope::{Scope, ScopeManager, ScopeValue},
 };
 
 pub struct EvaluatorState {
-    scope: ScopeManager,
+    pub scope: ScopeManager,
 }
 
 pub struct Evaluator {
     module: Module,
-    state: RwLock<EvaluatorState>,
+    pub state: RwLock<EvaluatorState>,
 }
 
 impl Evaluator {
     pub fn new(module: Module) -> Evaluator {
+        let scope = Rf::new(Scope::new(ScopeValue::Module));
         Evaluator {
             module,
             state: RwLock::new(EvaluatorState {
-                scope: ScopeManager::new(),
+                scope: ScopeManager::new(scope),
             }),
         }
     }
@@ -143,8 +144,14 @@ impl Evaluator {
             Expression::Integer(val, _, _) => ConstValue::cinteger(*val),
             Expression::Float(val, _, _) => ConstValue::cfloat(*val),
             Expression::Ident(SpannedToken(_, Token::Ident(id))) => {
-                if let Some(ScopeValue::ConstValue(symb)) = self.rstate().scope.find_symbol(id) {
-                    symb.clone()
+                let sym = self.rstate().scope.find_symbol(id);
+                if let Some(sym) = sym {
+                    let sym = sym.borrow();
+                    if let ScopeValue::ConstValue(cv) = &sym.value {
+                        cv.clone()
+                    } else {
+                        ConstValue::empty()
+                    }
                 } else {
                     ConstValue::empty()
                 }
@@ -181,10 +188,14 @@ impl Evaluator {
                         let return_values: HashMap<_, _> = rptypes
                             .into_iter()
                             .map(|(name, ty)| {
-                                let vl = if let Some(ScopeValue::ConstValue(cv)) =
-                                    self.rstate().scope.find_symbol(&name)
-                                {
-                                    cv.clone()
+                                let sym = self.rstate().scope.find_symbol(&name);
+                                let vl = if let Some(sym) = sym {
+                                    let sym = sym.borrow();
+                                    if let ScopeValue::ConstValue(cv) = &sym.value {
+                                        cv.clone()
+                                    } else {
+                                        ConstValue::empty()
+                                    }
                                 } else {
                                     ConstValue::default_for(ty)
                                 };
@@ -230,10 +241,12 @@ impl Evaluator {
             ) => {
                 let right = self.evaluate_expression(right);
                 let scope = &mut self.wstate().scope;
-                let Some(left) = scope.follow_member_access_mut(dleft, dright) else {
+                if !scope.follow_member_access_mut(dleft, dright, |cv| {
+                    *cv = right.clone();
+                }) {
                     return ConstValue::empty();
                 };
-                *left = right.clone();
+                // *left = right.clone();
                 return right;
             }
             (Operator::Dot, _) => {

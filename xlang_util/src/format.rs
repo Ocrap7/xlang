@@ -2,6 +2,7 @@ use std::{
     cell::{Ref, RefCell},
     collections::HashMap,
     fmt,
+    rc::Rc,
     sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
 };
 
@@ -195,6 +196,46 @@ pub trait TreeDisplay<U = ()>: NodeDisplay + AsTrait<U> {
     }
 }
 
+pub struct GrouperIter<'a, I: Iterator<Item = &'a dyn TreeDisplay>>(pub String, pub usize, pub I);
+
+impl<'a, I: Iterator<Item = &'a dyn TreeDisplay>> NodeDisplay for GrouperIter<'a, I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl<'a, I: Iterator<Item = &'a dyn TreeDisplay> + Clone> TreeDisplay for GrouperIter<'a, I> {
+    fn num_children(&self) -> usize {
+        self.1
+    }
+
+    fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay<()>> {
+        self.2.clone().nth(index)
+    }
+}
+
+pub struct BoxedGrouperIter<'a, I: Iterator<Item = Box<dyn TreeDisplay + 'a>>>(pub String, pub usize, pub I);
+
+impl<'b, I: Iterator<Item = Box<dyn TreeDisplay + 'b>>> NodeDisplay for BoxedGrouperIter<'b, I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl<'b, I: Iterator<Item = Box<dyn TreeDisplay + 'b>> + Clone> TreeDisplay for BoxedGrouperIter<'b, I> {
+    fn num_children(&self) -> usize {
+        self.1
+    }
+
+    fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<()>> {
+        None 
+    }
+
+    fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
+        self.2.clone().nth(_index).unwrap()
+    }
+}
+
 pub struct Grouper<'a>(pub String, pub &'a dyn TreeDisplay);
 
 impl<'a> NodeDisplay for Grouper<'a> {
@@ -213,21 +254,47 @@ impl<'a> TreeDisplay for Grouper<'a> {
     }
 }
 
-pub struct BoxedGrouper(pub String, pub Box<dyn TreeDisplay>);
+pub struct BoxedGrouper<'a>(pub String, pub Box<dyn TreeDisplay + 'a>);
 
-impl NodeDisplay for BoxedGrouper {
+impl NodeDisplay for BoxedGrouper<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
     }
 }
 
-impl TreeDisplay for BoxedGrouper {
+impl TreeDisplay for BoxedGrouper<'_> {
     fn num_children(&self) -> usize {
         1
     }
 
     fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<()>> {
         Some(&*self.1)
+    }
+}
+
+pub struct RfGrouper<T>(pub String, pub Rf<T>);
+
+impl<T> NodeDisplay for RfGrouper<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl<T, U> TreeDisplay<U> for RfGrouper<T>
+where
+    T: TreeDisplay<U> + NodeDisplay,
+{
+    fn num_children(&self) -> usize {
+        1
+    }
+
+    fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<U>> {
+        None
+    }
+
+    fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<U> + 'a> {
+        // Rf<dyn TreeDisplay<U>>::child_at_bx(&self.1, index)
+        Box::new(self.1.borrow())
     }
 }
 
@@ -323,19 +390,19 @@ where
     }
 }
 
-impl<T> TreeDisplay for Rf<T>
+impl<T, U> TreeDisplay<U> for Rf<T>
 where
-    T: NodeDisplay + TreeDisplay,
+    T: NodeDisplay + TreeDisplay<U>,
 {
     fn num_children(&self) -> usize {
         1
     }
 
-    fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay> {
+    fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<U>> {
         None
     }
 
-    fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay + 'a> {
+    fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<U> + 'a> {
         Box::new(self.borrow())
     }
 }
