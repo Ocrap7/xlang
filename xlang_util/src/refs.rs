@@ -5,6 +5,15 @@ use std::{
 
 pub struct Rf<T: ?Sized>(pub Arc<RwLock<T>>);
 
+impl<T> PartialEq for Rf<T> {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl<T> Eq for Rf<T> { }
+
+
 impl<T: ?Sized> Clone for Rf<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())

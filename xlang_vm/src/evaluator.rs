@@ -1,36 +1,39 @@
 use std::{
-    collections::HashMap,
+    rc::Rc,
     sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
+use linked_hash_map::LinkedHashMap;
 use xlang_core::{
-    ast::{ArgList, Expression, ParamaterList, Statement},
+    ast::{ArgList, Expression, ParamaterList, Statement, AstNode},
     token::{Operator, SpannedToken, Token},
     Module,
 };
-use xlang_util::{format::TreeDisplay, Rf};
+use xlang_util::format::TreeDisplay;
 
 use crate::{
     const_value::{ConstValue, ConstValueKind, Type},
-    scope::{Scope, ScopeManager, ScopeValue},
+    error::{EvaluationError, EvaluationErrorKind},
+    scope::{ScopeManager, ScopeValue},
 };
 
 pub struct EvaluatorState {
     pub scope: ScopeManager,
+    pub errors: Vec<EvaluationError>,
 }
 
 pub struct Evaluator {
-    module: Module,
+    module: Rc<Module>,
     pub state: RwLock<EvaluatorState>,
 }
 
 impl Evaluator {
-    pub fn new(module: Module) -> Evaluator {
-        let scope = Rf::new(Scope::new(ScopeValue::Module));
+    pub fn new(module: Rc<Module>, scope_manager: ScopeManager) -> Evaluator {
         Evaluator {
             module,
             state: RwLock::new(EvaluatorState {
-                scope: ScopeManager::new(scope),
+                scope: scope_manager,
+                errors: Vec::new(),
             }),
         }
     }
@@ -46,12 +49,6 @@ impl Evaluator {
 
 impl Evaluator {
     pub fn evaluate(&self) -> Vec<ConstValue> {
-        self.wstate().scope.push_scope();
-
-        for stmt in &self.module.stmts {
-            self.evaluate_statement(stmt);
-        }
-
         let vals = self
             .module
             .stmts
@@ -70,9 +67,13 @@ impl Evaluator {
                 ..
             } => {
                 let members = self.evaluate_params(parameters);
-                self.wstate()
-                    .scope
-                    .update_value(id, ScopeValue::Record { members });
+                self.wstate().scope.update_value(
+                    id,
+                    ScopeValue::Record {
+                        members,
+                        ident: id.to_string(),
+                    },
+                );
             }
             Statement::Decleration {
                 ident: SpannedToken(_, Token::Ident(id)),
@@ -88,12 +89,17 @@ impl Evaluator {
                 let parameters = self.evaluate_params(parameters);
                 let return_parameters = self.evaluate_params(return_parameters);
 
+                self.wstate()
+                    .scope
+                    .update_value(id, ScopeValue::ConstValue(ConstValue::empty()));
+                let sym = self.wstate().scope.find_symbol(id).unwrap();
                 self.wstate().scope.update_value(
                     id,
                     ScopeValue::ConstValue(ConstValue::func(
                         Statement::clone(body),
                         parameters,
                         return_parameters,
+                        sym,
                     )),
                 );
             }
@@ -128,7 +134,7 @@ impl Evaluator {
         ConstValue::empty()
     }
 
-    pub fn evaluate_params(&self, params: &ParamaterList) -> HashMap<String, Type> {
+    pub fn evaluate_params(&self, params: &ParamaterList) -> LinkedHashMap<String, Type> {
         let iter = params.items.iter_items().filter_map(|f| {
             if let (Some(SpannedToken(_, Token::Ident(name))), Some(ty)) = (&f.name, &f.ty) {
                 Some((name.clone(), self.evaluate_type(ty)))
@@ -136,7 +142,7 @@ impl Evaluator {
                 None
             }
         });
-        HashMap::from_iter(iter)
+        LinkedHashMap::from_iter(iter)
     }
 
     pub fn evaluate_expression(&self, expression: &Expression) -> ConstValue {
@@ -161,9 +167,9 @@ impl Evaluator {
                 right: Some(right),
                 op_token: Some(SpannedToken(_, Token::Operator(o))),
             } => self.evaluate_binary_expression(left, o, right),
-            Expression::FunctionCall { expr, args } => {
+            Expression::FunctionCall { expr, args: raw_args } => {
                 let expr = self.evaluate_expression(expr);
-                let args = self.evaluate_args(args);
+                let args = self.evaluate_args(raw_args);
 
                 match (expr.ty, expr.kind) {
                     (
@@ -171,11 +177,17 @@ impl Evaluator {
                             parameters: ptypes,
                             return_parameters: rptypes,
                         },
-                        ConstValueKind::Function { body },
+                        ConstValueKind::Function { body, rf },
                     ) => {
-                        self.wstate().scope.push_scope();
-                        // TODO: verify types and such
-                        for (arg, (name, _ty)) in args.into_iter().zip(ptypes.into_iter()) {
+                        self.wstate().scope.push_scope(rf);
+                        for (i, (arg, (name, ty))) in args.into_iter().zip(ptypes.into_iter()).enumerate() {
+                            if arg.ty != ty {
+                                self.add_error(EvaluationError {
+                                    kind: EvaluationErrorKind::TypeMismatch(arg.ty, ty),
+                                    range: raw_args.items.iter_items().nth(i).unwrap().get_range(),
+                                });
+                                return ConstValue::empty();
+                            }
                             self.wstate()
                                 .scope
                                 .update_value(&name, ScopeValue::ConstValue(arg));
@@ -185,7 +197,7 @@ impl Evaluator {
 
                         // TODO: verify types here as well
 
-                        let return_values: HashMap<_, _> = rptypes
+                        let return_values: LinkedHashMap<_, _> = rptypes
                             .into_iter()
                             .map(|(name, ty)| {
                                 let sym = self.rstate().scope.find_symbol(&name);
@@ -243,7 +255,7 @@ impl Evaluator {
                 let scope = &mut self.wstate().scope;
                 let updated_value = scope.follow_member_access_mut(dleft, dright, |cv| {
                     *cv = right.clone();
-                }) ;
+                });
                 if !updated_value {
                     return ConstValue::empty();
                 };
@@ -367,10 +379,18 @@ impl Evaluator {
                 signed: *signed,
             },
             xlang_core::ast::Type::Float { width, .. } => Type::Float { width: *width },
-            xlang_core::ast::Type::Ident(SpannedToken(_, Token::Ident(id))) => {
-                Type::Ident(id.clone())
+            xlang_core::ast::Type::Ident(id) => {
+                if let Some(sym) = self.rstate().scope.find_symbol(id.as_str()) {
+                    Type::Symbol(sym)
+                } else {
+                    Type::Empty
+                }
             }
-            _ => Type::Empty,
         }
     }
+
+    fn add_error(&self, error: EvaluationError) {
+        self.wstate().errors.push(error)
+    }
 }
+

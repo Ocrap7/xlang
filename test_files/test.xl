@@ -1,5 +1,7 @@
 
-func: (i8 a, i8 b) -> (i8 s), s = a + b
+data: (i8 a)
+
+func: (data a, i8 b) -> (i8 s), s = a + b
 
 val: func(7, 8)
 

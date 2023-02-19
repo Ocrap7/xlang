@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use linked_hash_map::LinkedHashMap;
 use xlang_core::{
     ast::Expression,
     token::{Operator, SpannedToken, Token},
@@ -14,13 +15,20 @@ use crate::const_value::{ConstValue, ConstValueKind, Type};
 #[derive(Clone)]
 pub enum ScopeValue {
     ConstValue(ConstValue),
-    Record { members: HashMap<String, Type> },
+    Record {
+        ident: String,
+        members: LinkedHashMap<String, Type>,
+    },
     Module,
 }
 
 impl NodeDisplay for ScopeValue {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            ScopeValue::ConstValue(ConstValue {
+                ty: Type::Function { .. },
+                ..
+            }) => f.write_str("Function"),
             ScopeValue::ConstValue(_) => f.write_str("Constant Value"),
             ScopeValue::Record { .. } => f.write_str("Record"),
             ScopeValue::Module => f.write_str("Module"),
@@ -40,7 +48,7 @@ impl TreeDisplay for ScopeValue {
     fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay<()>> {
         match self {
             ScopeValue::ConstValue(c) => c.child_at(index),
-            ScopeValue::Record { members } => Some(members),
+            ScopeValue::Record { members, .. } => Some(members),
             ScopeValue::Module => None,
         }
     }
@@ -62,17 +70,24 @@ impl Scope {
 
 impl NodeDisplay for Scope {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        self.value.fmt(f)
+        f.write_str("Scope")
     }
 }
 
 impl TreeDisplay for Scope {
     fn num_children(&self) -> usize {
-        1
+        if self.children.len() > 0 {
+            2
+        } else {
+            1
+        }
     }
 
     fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<()>> {
-        None
+        match _index {
+            0 => Some(&self.value),
+            _ => None,
+        }
     }
 
     fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
@@ -90,8 +105,6 @@ impl TreeDisplay for Scope {
 pub struct ScopeRef(usize, String);
 
 pub struct ScopeManager {
-    // scopes: Vec<Scope>,
-    // modules: HashMap<String, Scope>,
     module: Rf<Scope>,
     current_scope: Vec<Rf<Scope>>,
 }
@@ -107,14 +120,15 @@ impl<'a> ScopeManager {
         }
     }
 
-    pub fn push_scope(&mut self) {
+    pub fn push_scope(&mut self, rf: Rf<Scope>) {
+        self.current_scope.push(rf);
         // self.scopes.push(Scope {
         //     symbols: HashMap::new(),
         // });
     }
 
-    pub fn pop_scope(&mut self) {
-        // self.scopes.remove(self.scopes.len() - 1)
+    pub fn pop_scope(&mut self) -> Rf<Scope> {
+        self.current_scope.remove(self.current_scope.len() - 1)
     }
 
     // pub fn get_symbol_ref(&self, name: &str) -> Option<ScopeRef> {
@@ -146,7 +160,7 @@ impl<'a> ScopeManager {
         &'a mut self,
         left: &Expression,
         right: &Expression,
-        _cb: impl FnMut(&mut ConstValue),
+        mut cb: impl FnMut(&mut ConstValue),
     ) -> bool {
         match (left, right) {
             (Expression::Ident(left), Expression::Ident(right)) => {
@@ -163,8 +177,8 @@ impl<'a> ScopeManager {
                         return false
                     };
 
-                if let Some(_m) = members.get_mut(right.as_str()) {
-                    // cb(m);
+                if let Some(m) = members.get_mut(right.as_str()) {
+                    cb(m);
                 }
                 return true;
             }
@@ -255,6 +269,17 @@ impl<'a> ScopeManager {
 
         None
     }
+
+    pub fn insert_value(&mut self, name: &str, value: ScopeValue) -> Rf<Scope> {
+        if let Some(scp) = self.current_scope.last() {
+            let rf = Rf::new(Scope::new(value));
+            scp.borrow_mut()
+                .children
+                .insert(name.to_string(), rf.clone());
+            return rf;
+        }
+        panic!()
+    }
 }
 
 impl NodeDisplay for ScopeManager {
@@ -265,7 +290,7 @@ impl NodeDisplay for ScopeManager {
 
 impl TreeDisplay for ScopeManager {
     fn num_children(&self) -> usize {
-        2
+        1
     }
 
     fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<()>> {

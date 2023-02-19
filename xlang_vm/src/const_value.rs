@@ -3,9 +3,14 @@ use std::{
     fmt::{Debug, Display},
 };
 
+use linked_hash_map::LinkedHashMap;
 use xlang_core::ast::Statement;
-use xlang_util::format::{NodeDisplay, TreeDisplay};
+use xlang_util::{
+    format::{NodeDisplay, TreeDisplay},
+    Rf,
+};
 
+use crate::scope::{Scope, ScopeValue};
 
 #[derive(Clone, PartialEq)]
 pub enum Type {
@@ -20,19 +25,107 @@ pub enum Type {
         width: u8,
     },
     Function {
-        parameters: HashMap<String, Type>,
-        return_parameters: HashMap<String, Type>,
+        parameters: LinkedHashMap<String, Type>,
+        return_parameters: LinkedHashMap<String, Type>,
     },
+    Symbol(Rf<Scope>),
     Ident(String),
     Tuple(Vec<Type>),
     RecordInstance {
-        members: HashMap<String, Type>,
+        members: LinkedHashMap<String, Type>,
     },
+}
+
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Float { width, .. } => write!(f, "f{width}"),
+            Self::Integer {
+                width,
+                signed: true,
+                ..
+            } => write!(f, "i{width}"),
+            Self::Integer {
+                width,
+                signed: false,
+                ..
+            } => write!(f, "u{width}"),
+            Self::Empty => f.write_str("()"),
+            Self::CoercibleInteger => f.write_str("{integer}"),
+            Self::CoercibleFloat => f.write_str("{float}"),
+            Self::Function {
+                parameters,
+                return_parameters,
+            } => {
+                write!(f, "(")?;
+                let mut iter = parameters.iter();
+
+                if let Some(val) = iter.next() {
+                    write!(f, "{} {}", val.1, val.0)?;
+                }
+                for val in iter {
+                    write!(f, " ,{} {}", val.1, val.0)?;
+                }
+                write!(f, ") -> (");
+                let mut iter = return_parameters.iter();
+
+                if let Some(val) = iter.next() {
+                    write!(f, "{} {}", val.1, val.0)?;
+                }
+                for val in iter {
+                    write!(f, " ,{} {}", val.1, val.0)?;
+                }
+                write!(f, ")")
+            }
+            Self::Symbol(rs) => {
+                let rs = rs.borrow();
+                if let ScopeValue::Record { ident, members } = &rs.value {
+                    write!(f, "{}: (", ident)?;
+                    let mut iter = members.iter();
+
+                    if let Some(val) = iter.next() {
+                        write!(f, "{} {}", val.1, val.0)?;
+                    }
+                    for val in iter {
+                        write!(f, " ,{} {}", val.1, val.0)?;
+                    }
+                    write!(f, ")")?;
+                }
+                Ok(())
+            }
+            Self::RecordInstance { members } => {
+                write!(f, "(")?;
+                let mut iter = members.iter();
+
+                if let Some(val) = iter.next() {
+                    write!(f, "{} {}", val.1, val.0)?;
+                }
+                for val in iter {
+                    write!(f, " ,{} {}", val.1, val.0)?;
+                }
+                write!(f, ")")
+            }
+            Self::Ident(i) => f.write_str(i),
+            Self::Tuple(ty) => {
+                write!(f, "(")?;
+                let mut iter = ty.iter();
+
+                if let Some(val) = iter.next() {
+                    write!(f, "{}", val)?;
+                }
+                for val in iter {
+                    write!(f, " ,{}", val)?;
+                }
+                write!(f, ")")
+            }
+        }
+    }
 }
 
 impl NodeDisplay for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            Self::Symbol { .. } => write!(f, "Symbol"),
             Self::RecordInstance { .. } => write!(f, "Record Instance"),
             Self::Tuple(_) => write!(f, "Tuple"),
             Self::Empty => write!(f, "Empty"),
@@ -109,11 +202,12 @@ pub enum ConstValueKind {
         value: f64,
     },
     Function {
+        rf: Rf<Scope>,
         body: Statement,
     },
     Tuple(Vec<ConstValue>),
     RecordInstance {
-        members: HashMap<String, ConstValue>,
+        members: LinkedHashMap<String, ConstValue>,
     },
 }
 
@@ -123,7 +217,7 @@ impl Display for ConstValueKind {
             ConstValueKind::Empty => f.write_str("()"),
             ConstValueKind::Integer { value } => write!(f, "{value}"),
             ConstValueKind::Float { value } => write!(f, "{value}"),
-            ConstValueKind::Function { body } => write!(f, "{}", body.format()),
+            ConstValueKind::Function { body, .. } => write!(f, "{}", body.format()),
             ConstValueKind::Tuple(list) => {
                 let mut iter = list.iter();
                 let Some(item) = iter.next() else {
@@ -167,7 +261,7 @@ impl ConstValueKind {
         }
     }
 
-    pub fn as_record_instance(&self) -> &HashMap<String, ConstValue> {
+    pub fn as_record_instance(&self) -> &LinkedHashMap<String, ConstValue> {
         match self {
             ConstValueKind::RecordInstance { members } => members,
             _ => panic!(),
@@ -204,7 +298,7 @@ impl TreeDisplay for ConstValueKind {
 
     fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay<()>> {
         match self {
-            ConstValueKind::Function { body } => match index {
+            ConstValueKind::Function { body, .. } => match index {
                 0 => Some(body),
                 _ => None,
             },
@@ -253,26 +347,6 @@ impl ConstValue {
         ConstValue { ty, kind }
     }
 
-    // pub fn scope_ref(scope: &ScopeManager, name: &str) -> ConstValue {
-    //     ConstValue {
-    //         ty: Type::Empty,
-    //         kind: ConstValueKind::Ref {
-    //             scope_ref: scope.get_symbol_ref(name).unwrap(),
-    //             member: None,
-    //         },
-    //     }
-    // }
-
-    // pub fn member_ref(scope: &ScopeManager, name: &str, member: &str) -> ConstValue {
-    //     ConstValue {
-    //         ty: Type::Empty,
-    //         kind: ConstValueKind::Ref {
-    //             scope_ref: scope.get_symbol_ref(name).unwrap(),
-    //             member: Some(member.to_string()),
-    //         },
-    //     }
-    // }
-
     pub fn integer(value: u64, width: u8, signed: bool) -> ConstValue {
         ConstValue {
             kind: ConstValueKind::Integer { value },
@@ -303,11 +377,12 @@ impl ConstValue {
 
     pub fn func(
         body: Statement,
-        parameters: HashMap<String, Type>,
-        return_parameters: HashMap<String, Type>,
+        parameters: LinkedHashMap<String, Type>,
+        return_parameters: LinkedHashMap<String, Type>,
+        node: Rf<Scope>,
     ) -> ConstValue {
         ConstValue {
-            kind: ConstValueKind::Function { body },
+            kind: ConstValueKind::Function { body, rf: node },
             ty: Type::Function {
                 parameters,
                 return_parameters,
@@ -323,9 +398,9 @@ impl ConstValue {
         }
     }
 
-    pub fn record_instance(values: HashMap<String, ConstValue>) -> ConstValue {
+    pub fn record_instance(values: LinkedHashMap<String, ConstValue>) -> ConstValue {
         let types = values.values().map(|val| val.ty.clone());
-        let ty = HashMap::from_iter(values.keys().cloned().zip(types));
+        let ty = LinkedHashMap::from_iter(values.keys().cloned().zip(types));
 
         ConstValue {
             ty: Type::RecordInstance { members: ty },

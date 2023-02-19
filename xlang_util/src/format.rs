@@ -5,6 +5,8 @@ use std::{
     sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
 };
 
+use linked_hash_map::LinkedHashMap;
+
 use crate::Rf;
 
 pub struct Fmt<F>(pub F)
@@ -271,6 +273,28 @@ impl TreeDisplay for BoxedGrouper<'_> {
     }
 }
 
+pub struct BoxRef<'a>(pub Box<dyn TreeDisplay + 'a>);
+
+impl NodeDisplay for BoxRef<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl TreeDisplay for BoxRef<'_> {
+    fn num_children(&self) -> usize {
+        self.0.num_children() 
+    }
+
+    fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay<()>> {
+        self.0.child_at(index)
+    }
+
+    fn child_at_bx<'a>(&'a self, index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
+        self.0.child_at_bx(index)
+    }
+}
+
 pub struct RfGrouper<T>(pub String, pub Rf<T>);
 
 impl<T> NodeDisplay for RfGrouper<T> {
@@ -338,6 +362,27 @@ impl<'a, T: NodeDisplay + 'a> NodeDisplay for HashMap<String, T> {
 }
 
 impl<'b, T: TreeDisplay + 'b> TreeDisplay for HashMap<String, T> {
+    fn num_children(&self) -> usize {
+        self.len()
+    }
+
+    fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay> {
+        None
+    }
+
+    fn child_at_bx<'a>(&'a self, index: usize) -> Box<dyn TreeDisplay + 'a> {
+        let (name, item) = self.iter().nth(index).unwrap();
+        Box::new(Grouper(name.clone(), item))
+    }
+}
+
+impl<'a, T: NodeDisplay + 'a> NodeDisplay for LinkedHashMap<String, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("LinkedHashMap")
+    }
+}
+
+impl<'b, T: TreeDisplay + 'b> TreeDisplay for LinkedHashMap<String, T> {
     fn num_children(&self) -> usize {
         self.len()
     }
