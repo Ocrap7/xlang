@@ -60,6 +60,9 @@ impl TreeDisplay for Scope {
     }
 }
 
+#[derive(Clone)]
+pub struct ScopeRef(usize, String);
+
 pub struct ScopeManager {
     scopes: Vec<Scope>,
 }
@@ -79,6 +82,31 @@ impl ScopeManager {
 
     pub fn pop_scope(&mut self) -> Scope {
         self.scopes.remove(self.scopes.len() - 1)
+    }
+
+    pub fn get_symbol_ref(&self, name: &str) -> Option<ScopeRef> {
+        let found = self
+            .scopes
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|scope| scope.1.symbols.get(name).map(|sc| (scope.0, name)));
+
+        if let Some((ind, st)) = found {
+            Some(ScopeRef(ind, st.to_string()))
+        } else {
+            None
+        }
+    }
+
+    pub fn get_symbol(&self, scope_ref: &ScopeRef) -> Option<&ScopeValue> {
+        if let Some(scp) = self.scopes.get(scope_ref.0) {
+            if let Some(sym) = scp.symbols.get(&scope_ref.1) {
+                return Some(sym);
+            }
+        }
+
+        None
     }
 
     pub fn find_symbol(&self, name: &str) -> Option<&ScopeValue> {

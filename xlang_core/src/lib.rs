@@ -1,7 +1,5 @@
 #![feature(trait_upcasting)]
 
-use std::collections::HashMap;
-
 use ast::{Expression, ParamaterList, Statement, Type};
 use lexer::Lexer;
 use linked_hash_map::LinkedHashMap;

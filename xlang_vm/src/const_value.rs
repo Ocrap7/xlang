@@ -6,6 +6,8 @@ use std::{
 use xlang_core::ast::Statement;
 use xlang_util::format::{NodeDisplay, TreeDisplay};
 
+use crate::scope::{ScopeManager, ScopeRef};
+
 #[derive(Clone, PartialEq)]
 pub enum Type {
     Empty,
@@ -114,12 +116,17 @@ pub enum ConstValueKind {
     RecordInstance {
         members: HashMap<String, ConstValue>,
     },
+    Ref {
+        scope_ref: ScopeRef,
+        member: Option<String>,
+    },
 }
 
 impl Display for ConstValueKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ConstValueKind::Empty => f.write_str("()"),
+            ConstValueKind::Ref { .. } => write!(f, "Ref"),
             ConstValueKind::Integer { value } => write!(f, "{}", value),
             ConstValueKind::Float { value } => write!(f, "{}", value),
             ConstValueKind::Function { body } => write!(f, "{}", body.format()),
@@ -169,7 +176,7 @@ impl ConstValueKind {
     pub fn as_record_instance(&self) -> &HashMap<String, ConstValue> {
         match self {
             ConstValueKind::RecordInstance { members } => members,
-            _ => panic!()
+            _ => panic!(),
         }
     }
 
@@ -185,6 +192,7 @@ impl NodeDisplay for ConstValueKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ConstValueKind::Empty => write!(f, "Empty"),
+            ConstValueKind::Ref { .. } => write!(f, "Ref"),
             ConstValueKind::Integer { value } => write!(f, "Integer: {}", value),
             ConstValueKind::Float { value } => write!(f, "Float: {}", value),
             ConstValueKind::Function { .. } => write!(f, "Function"),
@@ -253,6 +261,26 @@ impl ConstValue {
         };
 
         ConstValue { ty, kind }
+    }
+
+    pub fn scope_ref(scope: &ScopeManager, name: &str) -> ConstValue {
+        ConstValue {
+            ty: Type::Empty,
+            kind: ConstValueKind::Ref {
+                scope_ref: scope.get_symbol_ref(name).unwrap(),
+                member: None,
+            },
+        }
+    }
+
+    pub fn member_ref(scope: &ScopeManager, name: &str, member: &str) -> ConstValue {
+        ConstValue {
+            ty: Type::Empty,
+            kind: ConstValueKind::Ref {
+                scope_ref: scope.get_symbol_ref(name).unwrap(),
+                member: Some(member.to_string()),
+            },
+        }
     }
 
     pub fn integer(value: u64, width: u8, signed: bool) -> ConstValue {

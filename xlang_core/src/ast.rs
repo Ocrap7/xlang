@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use xlang_util::format::{NodeDisplay, StringFormatter, TreeDisplay};
+use xlang_util::format::{NodeDisplay, TreeDisplay};
 
 use crate::token::{Range, SpannedToken, Token, Unit};
 
