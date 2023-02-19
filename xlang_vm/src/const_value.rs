@@ -6,7 +6,6 @@ use std::{
 use xlang_core::ast::Statement;
 use xlang_util::format::{NodeDisplay, TreeDisplay};
 
-use crate::scope::{ScopeManager, ScopeRef};
 
 #[derive(Clone, PartialEq)]
 pub enum Type {
@@ -39,15 +38,15 @@ impl NodeDisplay for Type {
             Self::Empty => write!(f, "Empty"),
             Self::CoercibleInteger => write!(f, "Coercible Integer"),
             Self::CoercibleFloat => write!(f, "Coercible Float"),
-            Self::Float { width, .. } => write!(f, "f{}", width),
+            Self::Float { width, .. } => write!(f, "f{width}"),
             Self::Integer {
                 width,
                 signed: true,
-            } => write!(f, "i{}", width),
+            } => write!(f, "i{width}"),
             Self::Integer {
                 width,
                 signed: false,
-            } => write!(f, "u{}", width),
+            } => write!(f, "u{width}"),
             Self::Function { .. } => f.write_str("Function"),
             Self::Ident(ident) => f.write_str(ident),
         }
@@ -56,7 +55,7 @@ impl NodeDisplay for Type {
 
 impl Debug for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        <Type as NodeDisplay>::fmt(&self, f)
+        <Type as NodeDisplay>::fmt(self, f)
     }
 }
 
@@ -116,19 +115,14 @@ pub enum ConstValueKind {
     RecordInstance {
         members: HashMap<String, ConstValue>,
     },
-    Ref {
-        scope_ref: ScopeRef,
-        member: Option<String>,
-    },
 }
 
 impl Display for ConstValueKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ConstValueKind::Empty => f.write_str("()"),
-            ConstValueKind::Ref { .. } => write!(f, "Ref"),
-            ConstValueKind::Integer { value } => write!(f, "{}", value),
-            ConstValueKind::Float { value } => write!(f, "{}", value),
+            ConstValueKind::Integer { value } => write!(f, "{value}"),
+            ConstValueKind::Float { value } => write!(f, "{value}"),
             ConstValueKind::Function { body } => write!(f, "{}", body.format()),
             ConstValueKind::Tuple(list) => {
                 let mut iter = list.iter();
@@ -181,10 +175,7 @@ impl ConstValueKind {
     }
 
     pub fn as_empty(&self) -> bool {
-        match self {
-            ConstValueKind::Empty => true,
-            _ => false,
-        }
+        matches!(self, ConstValueKind::Empty)
     }
 }
 
@@ -192,9 +183,8 @@ impl NodeDisplay for ConstValueKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ConstValueKind::Empty => write!(f, "Empty"),
-            ConstValueKind::Ref { .. } => write!(f, "Ref"),
-            ConstValueKind::Integer { value } => write!(f, "Integer: {}", value),
-            ConstValueKind::Float { value } => write!(f, "Float: {}", value),
+            ConstValueKind::Integer { value } => write!(f, "Integer: {value}"),
+            ConstValueKind::Float { value } => write!(f, "Float: {value}"),
             ConstValueKind::Function { .. } => write!(f, "Function"),
             ConstValueKind::Tuple(_) => write!(f, "Tuple"),
             ConstValueKind::RecordInstance { .. } => write!(f, "Record Instance"),
@@ -285,7 +275,7 @@ impl ConstValue {
 
     pub fn integer(value: u64, width: u8, signed: bool) -> ConstValue {
         ConstValue {
-            kind: ConstValueKind::Integer { value: value },
+            kind: ConstValueKind::Integer { value },
             ty: Type::Integer { width, signed },
         }
     }
@@ -299,7 +289,7 @@ impl ConstValue {
 
     pub fn float(value: f64, width: u8) -> ConstValue {
         ConstValue {
-            kind: ConstValueKind::Float { value: value },
+            kind: ConstValueKind::Float { value },
             ty: Type::Float { width },
         }
     }

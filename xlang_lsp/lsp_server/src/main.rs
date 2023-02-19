@@ -10,7 +10,7 @@ use tower_lsp::{lsp_types::*, LanguageServer};
 use tower_lsp::{Client, LspService, Server};
 use xlang_core::ast::{ArgList, AstNode, Expression, ParamaterList, Statement, Type};
 use xlang_core::token::{Operator, Span, SpannedToken, Token};
-use xlang_core::{Module, SymbolKind};
+use xlang_core::{Module};
 
 struct ReadDirectoryRequest {}
 
@@ -47,6 +47,7 @@ const STOKEN_TYPES: &[SemanticTokenType] = &[
     SemanticTokenType::OPERATOR,
 ];
 
+#[derive(Default)]
 pub struct SemanticTokenBuilder {
     tokens: Vec<SemanticToken>,
     last_line: u32,
@@ -54,14 +55,6 @@ pub struct SemanticTokenBuilder {
 }
 
 impl SemanticTokenBuilder {
-    pub fn new() -> SemanticTokenBuilder {
-        SemanticTokenBuilder {
-            tokens: Vec::new(),
-            last_line: 0,
-            last_pos: 0,
-        }
-    }
-
     pub fn push(&mut self, line: u32, position: u32, length: u32, token: u32, modifier: u32) {
         if self.last_line == line {
             let delta_pos = position - self.last_pos;
@@ -92,8 +85,6 @@ impl SemanticTokenBuilder {
     }
 }
 
-const PROPERTY_COMPLETES: &[&str] = &["class"];
-
 struct Backend {
     element_names: HashSet<String>,
     style_enum: HashMap<String, CompletionType>,
@@ -122,7 +113,7 @@ impl Backend {
         builder: &mut SemanticTokenBuilder,
     ) {
         match value {
-            Expression::Ident(tok @ SpannedToken(_, Token::Ident(value_str))) => {
+            Expression::Ident(tok @ SpannedToken(_, Token::Ident(_value_str))) => {
                 // TODO: lookup identifier in symbol tree
                 // if let Some(this_sym) = module.resolve_symbol_chain_indicies(scope_index.iter()) {
                 //     if let Some(found_sym) = module.resolve_symbol(&this_sym, &value_str) {
@@ -253,9 +244,9 @@ impl Backend {
 
     fn recurse_type(
         &self,
-        module: &Module,
+        _module: &Module,
         ty: &Type,
-        scope_index: &mut Vec<usize>,
+        _scope_index: &mut Vec<usize>,
         builder: &mut SemanticTokenBuilder,
     ) {
         match ty {
@@ -348,8 +339,8 @@ impl Backend {
 
     fn bsearch_value_with_key(
         &self,
-        key: &SpannedToken,
-        span: &Span,
+        _key: &SpannedToken,
+        _span: &Span,
     ) -> Option<Vec<CompletionItem>> {
         None
     }
@@ -358,7 +349,7 @@ impl Backend {
         &self,
         module: &Module,
         item: &Statement,
-        span: &Span,
+        _span: &Span,
     ) -> Option<Vec<CompletionItem>> {
         match item {
             Statement::UseStatement { args, .. } => {
@@ -367,7 +358,7 @@ impl Backend {
                 {
                     if let Some(sym) = module.resolve_symbol_chain(args.iter_items()) {
                         println!("Use {}", sym.borrow().name);
-                        let mut comp = Vec::new();
+                        let comp = Vec::new();
 
                         return Some(comp);
                     }
@@ -433,7 +424,7 @@ impl LanguageServer for Backend {
                 return Ok(None)
             };
 
-            let mut builder = SemanticTokenBuilder::new();
+            let mut builder = SemanticTokenBuilder::default();
             let mut scope = Vec::with_capacity(50);
             scope.push(0);
             for (i, tok) in mods.stmts.iter().enumerate() {
@@ -472,12 +463,10 @@ impl LanguageServer for Backend {
                 .iter()
                 .find_map(|f| self.bsearch_statement(mods, f, &sp));
 
-            if let None = items {
-                if mods
+            if items.is_none() {
+                if !mods
                     .stmts
-                    .iter()
-                    .find(|f| f.get_range().contains(&sp))
-                    .is_none()
+                    .iter().any(|f| f.get_range().contains(&sp))
                 {
                     Some(
                         self.element_names
@@ -497,7 +486,7 @@ impl LanguageServer for Backend {
             }
         };
         self.client
-            .log_message(MessageType::INFO, format!("completino {:?}", res))
+            .log_message(MessageType::INFO, format!("completino {res:?}"))
             .await;
 
         if let Some(items) = res {
@@ -529,7 +518,7 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        println!("Change {:?}", params);
+        println!("Change {params:?}");
 
         let doc = params.text_document;
         for change in params.content_changes {
@@ -584,7 +573,9 @@ async fn main() {
 
     let (service, socket) = LspService::new(|client| {
         let client = Arc::new(client);
-        let res = Backend {
+        
+
+        Backend {
             element_names: HashSet::from_iter(["style".into(), "view".into(), "setup".into()]),
             style_enum: HashMap::from([
                 (
@@ -610,10 +601,8 @@ async fn main() {
                 ("gap".to_string(), CompletionType::Unknown),
             ]),
             documents: RwLock::new(HashMap::new()),
-            client: client.clone(),
-        };
-
-        res
+            client,
+        }
     });
     Server::new(read, write, socket).serve(service).await;
 }

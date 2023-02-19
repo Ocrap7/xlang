@@ -60,7 +60,7 @@ impl Parser {
 
         let expression = self.parse_expression(0);
         if expression.is_some() {
-            return expression.map(|e| Statement::Expression(e));
+            return expression.map(Statement::Expression);
         }
 
         None
@@ -85,7 +85,7 @@ impl Parser {
 
     pub fn parse_use(&self) -> Option<Statement> {
         let token = self.tokens.next();
-        let mut args = PunctuationList::new();
+        let mut args = PunctuationList::default();
         let mut last_line = token.map(|l| l.span().line_num);
         while let Some(Token::Ident(_)) = self.tokens.peek() {
             let tok = self.tokens.next();
@@ -117,9 +117,9 @@ impl Parser {
         let open = self.expect_operator(Operator::OpenParen);
 
         let args = match self.tokens.peek() {
-            Some(Token::Operator(Operator::CloseParen)) => PunctuationList::new(),
+            Some(Token::Operator(Operator::CloseParen)) => PunctuationList::default(),
             _ => {
-                let mut args = PunctuationList::new();
+                let mut args = PunctuationList::default();
 
                 while let Some(arg) = self.parse_parameter() {
                     if arg.name.is_none() && arg.ty.is_none() {
@@ -136,9 +136,7 @@ impl Parser {
                     }
                     if comma.is_none() {
                         self.add_error(ParseError {
-                            kind: ParseErrorKind::InvalidSyntax(format!(
-                                "Expected comma in arguments!"
-                            )),
+                            kind: ParseErrorKind::InvalidSyntax("Expected comma in arguments!".to_string()),
                             range: Range::default(),
                         });
                     }
@@ -160,7 +158,7 @@ impl Parser {
             })
         } else {
             self.add_error(ParseError {
-                kind: ParseErrorKind::InvalidSyntax(format!("Unable to parse arg brackets!")),
+                kind: ParseErrorKind::InvalidSyntax("Unable to parse arg brackets!".to_string()),
                 range: Range::default(),
             });
             Some(ParamaterList {
@@ -181,7 +179,7 @@ impl Parser {
             }),
             (ident, ty) => {
                 self.add_error(ParseError {
-                    kind: ParseErrorKind::InvalidSyntax(format!("Unable to parse arg fields!")),
+                    kind: ParseErrorKind::InvalidSyntax("Unable to parse arg fields!".to_string()),
                     range: Range::default(),
                 });
                 Some(Param {
@@ -196,9 +194,9 @@ impl Parser {
         let open = self.expect_operator(Operator::OpenParen);
 
         let args = match self.tokens.peek() {
-            Some(Token::Operator(Operator::CloseParen)) => PunctuationList::new(),
+            Some(Token::Operator(Operator::CloseParen)) => PunctuationList::default(),
             _ => {
-                let mut args = PunctuationList::new();
+                let mut args = PunctuationList::default();
 
                 while let Some(arg) = self.parse_expression(0) {
                     let comma = if let Some(Token::Operator(Operator::Comma)) = self.tokens.peek() {
@@ -212,9 +210,7 @@ impl Parser {
                     }
                     if comma.is_none() {
                         self.add_error(ParseError {
-                            kind: ParseErrorKind::InvalidSyntax(format!(
-                                "Expected comma in arguments!"
-                            )),
+                            kind: ParseErrorKind::InvalidSyntax("Expected comma in arguments!".to_string()),
                             range: Range::default(),
                         });
                     }
@@ -236,7 +232,7 @@ impl Parser {
             })
         } else {
             self.add_error(ParseError {
-                kind: ParseErrorKind::InvalidSyntax(format!("Unable to parse arg brackets!")),
+                kind: ParseErrorKind::InvalidSyntax("Unable to parse arg brackets!".to_string()),
                 range: Range::default(),
             });
             Some(ArgList {

@@ -2,7 +2,6 @@ use std::{
     cell::{Ref, RefCell},
     collections::HashMap,
     fmt,
-    rc::Rc,
     sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
 };
 
@@ -76,7 +75,7 @@ pub trait TreeDisplay<U = ()>: NodeDisplay + AsTrait<U> {
         indent: &String,
         last: bool,
     ) -> std::fmt::Result {
-        write!(f, "{}", indent)?;
+        write!(f, "{indent}")?;
         if index != 0 {
             write!(f, "{}", if last { "└──" } else { "├──" })?;
         }
@@ -93,7 +92,7 @@ pub trait TreeDisplay<U = ()>: NodeDisplay + AsTrait<U> {
         );
 
         self.fmt(f)?;
-        write!(f, "\n")?;
+        writeln!(f)?;
 
         // write!(f, "{}\n", self)?;
 
@@ -105,7 +104,7 @@ pub trait TreeDisplay<U = ()>: NodeDisplay + AsTrait<U> {
                     f,
                     (i + 1).try_into().unwrap(),
                     &nindent,
-                    if i == n - 1 { true } else { false },
+                    i == n - 1,
                 )?;
             } else {
                 let child = self.child_at_bx(i);
@@ -113,7 +112,7 @@ pub trait TreeDisplay<U = ()>: NodeDisplay + AsTrait<U> {
                     f,
                     (i + 1).try_into().unwrap(),
                     &nindent,
-                    if i == n - 1 { true } else { false },
+                    i == n - 1,
                 )?;
             }
         }
@@ -129,7 +128,7 @@ pub trait TreeDisplay<U = ()>: NodeDisplay + AsTrait<U> {
         last: bool,
         founc: &mut Box<dyn FnMut(&dyn TreeDisplay<U>, &str) -> Option<String>>,
     ) -> std::fmt::Result {
-        write!(f, "{}", indent)?;
+        write!(f, "{indent}")?;
         if index != 0 {
             write!(f, "{}", if last { "└──" } else { "├──" })?;
         }
@@ -148,9 +147,9 @@ pub trait TreeDisplay<U = ()>: NodeDisplay + AsTrait<U> {
         let val = format!("{}", Fmt(|f| self.fmt(f)));
         let valo = founc(self.as_trait(), &val);
         if let Some(val) = valo {
-            write!(f, "{}\n", val)?;
+            writeln!(f, "{val}")?;
         } else {
-            write!(f, "{}\n", val)?;
+            writeln!(f, "{val}")?;
         }
         // self.fmt(f)?;
         // write!(f, "\n")?;
@@ -163,7 +162,7 @@ pub trait TreeDisplay<U = ()>: NodeDisplay + AsTrait<U> {
                     f,
                     (i + 1).try_into().unwrap(),
                     &nindent,
-                    if i == n - 1 { true } else { false },
+                    i == n - 1,
                     founc,
                 )?;
             } else {
@@ -172,7 +171,7 @@ pub trait TreeDisplay<U = ()>: NodeDisplay + AsTrait<U> {
                     f,
                     (i + 1).try_into().unwrap(),
                     &nindent,
-                    if i == n - 1 { true } else { false },
+                    i == n - 1,
                     founc,
                 )?;
             }
@@ -355,7 +354,7 @@ impl<'b, T: TreeDisplay + 'b> TreeDisplay for HashMap<String, T> {
 
 impl NodeDisplay for String {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str(&self)
+        f.write_str(self)
     }
 }
 
@@ -412,7 +411,7 @@ where
     T: NodeDisplay,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        <T as NodeDisplay>::fmt(&self, f)
+        <T as NodeDisplay>::fmt(self, f)
     }
 }
 
@@ -421,11 +420,11 @@ where
     T: NodeDisplay + TreeDisplay,
 {
     fn num_children(&self) -> usize {
-        <T as TreeDisplay>::num_children(&self)
+        <T as TreeDisplay>::num_children(self)
     }
 
     fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay> {
-        <T as TreeDisplay>::child_at(&self, index)
+        <T as TreeDisplay>::child_at(self, index)
     }
 }
 
@@ -434,7 +433,7 @@ where
     T: NodeDisplay,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        <T as NodeDisplay>::fmt(&self, f)
+        <T as NodeDisplay>::fmt(self, f)
     }
 }
 
@@ -443,11 +442,11 @@ where
     T: NodeDisplay + TreeDisplay,
 {
     fn num_children(&self) -> usize {
-        <T as TreeDisplay>::num_children(&self)
+        <T as TreeDisplay>::num_children(self)
     }
 
     fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay> {
-        <T as TreeDisplay>::child_at(&self, index)
+        <T as TreeDisplay>::child_at(self, index)
     }
 }
 
@@ -456,7 +455,7 @@ where
     T: NodeDisplay,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        <T as NodeDisplay>::fmt(&self, f)
+        <T as NodeDisplay>::fmt(self, f)
     }
 }
 
@@ -465,19 +464,19 @@ where
     T: NodeDisplay + TreeDisplay<U>,
 {
     fn num_children(&self) -> usize {
-        <T as TreeDisplay<U>>::num_children(&self)
+        <T as TreeDisplay<U>>::num_children(self)
     }
 
     fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay<U>> {
-        <T as TreeDisplay<U>>::child_at(&self, index)
+        <T as TreeDisplay<U>>::child_at(self, index)
     }
 
     fn child_at_bx<'a>(&'a self, index: usize) -> Box<dyn TreeDisplay<U> + 'a> {
-        <T as TreeDisplay<U>>::child_at_bx(&self, index)
+        <T as TreeDisplay<U>>::child_at_bx(self, index)
     }
 
     fn get_user_data(&self) -> Option<U> {
-        <T as TreeDisplay<U>>::get_user_data(&self)
+        <T as TreeDisplay<U>>::get_user_data(self)
     }
 }
 

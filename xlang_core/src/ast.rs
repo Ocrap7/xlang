@@ -38,11 +38,13 @@ pub struct PunctuationList<T: AstNode> {
     tokens: Vec<(T, Option<SpannedToken>)>,
 }
 
-impl<T: AstNode> PunctuationList<T> {
-    pub fn new() -> PunctuationList<T> {
-        PunctuationList { tokens: Vec::new() }
+impl<T: AstNode> Default for PunctuationList<T> {
+    fn default() -> Self {
+        Self { tokens: Vec::default() }
     }
+}
 
+impl<T: AstNode> PunctuationList<T> {
     pub fn push(&mut self, val: T, separator: Option<SpannedToken>) {
         self.tokens.push((val, separator))
     }
@@ -96,7 +98,7 @@ where
     fn num_children(&self) -> usize {
         if let Some((_, Some(_))) = self.tokens.last() {
             self.tokens.len() * 2
-        } else if self.tokens.len() > 0 {
+        } else if !self.tokens.is_empty() {
             self.tokens.len() * 2 - 1
         } else {
             0
@@ -285,17 +287,17 @@ impl AstNode for Type {
 impl NodeDisplay for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::Float { width, .. } => write!(f, "f{}", width),
+            Self::Float { width, .. } => write!(f, "f{width}"),
             Self::Integer {
                 width,
                 signed: true,
                 ..
-            } => write!(f, "i{}", width),
+            } => write!(f, "i{width}"),
             Self::Integer {
                 width,
                 signed: false,
                 ..
-            } => write!(f, "u{}", width),
+            } => write!(f, "u{width}"),
             Self::Ident(ident) => <SpannedToken as NodeDisplay>::fmt(ident, f),
         }
     }
@@ -303,7 +305,7 @@ impl NodeDisplay for Type {
 
 impl Debug for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        <Type as NodeDisplay>::fmt(&self, f)
+        <Type as NodeDisplay>::fmt(self, f)
     }
 }
 
@@ -351,7 +353,7 @@ pub enum Expression {
 impl Expression {
     pub fn as_function(&self) -> Option<(&Expression, &ArgList)> {
         match self {
-            Expression::FunctionCall { expr, args } => return Some((expr, args)),
+            Expression::FunctionCall { expr, args } => Some((expr, args)),
             _ => None,
         }
     }
@@ -398,7 +400,7 @@ impl AstNode for Expression {
                 (Some(s), Some(e)) => Range::from((&s.get_range(), &e.get_range())),
                 _ => Range::default(),
             },
-            Self::Array { range, .. } => range.clone(),
+            Self::Array { range, .. } => *range,
             Self::Integer(_, _, s) => s.0.into(),
             Self::Float(_, _, s) => s.0.into(),
             Self::Ident(s) => s.0.into(),
@@ -420,11 +422,11 @@ impl NodeDisplay for Expression {
                 ..
             } => write!(f, "BinExp {}", op.as_str()),
             Self::BinaryExpression { .. } => write!(f, "BinExp"),
-            Self::Integer(i, Some(u), _) => write!(f, "{}{}", i, u),
-            Self::Float(i, Some(u), _) => write!(f, "{}{}", i, u),
-            Self::Integer(i, None, _) => write!(f, "{}", i),
-            Self::Float(i, None, _) => write!(f, "{}", i),
-            Self::Ident(SpannedToken(_, Token::Ident(i))) => write!(f, "{}", i),
+            Self::Integer(i, Some(u), _) => write!(f, "{i}{u}"),
+            Self::Float(i, Some(u), _) => write!(f, "{i}{u}"),
+            Self::Integer(i, None, _) => write!(f, "{i}"),
+            Self::Float(i, None, _) => write!(f, "{i}"),
+            Self::Ident(SpannedToken(_, Token::Ident(i))) => write!(f, "{i}"),
             Self::FunctionCall { .. } => write!(f, "FunctionCall"),
             Self::Array { .. } => f.write_str("Array"),
             _ => panic!(),
@@ -434,7 +436,7 @@ impl NodeDisplay for Expression {
 
 impl Debug for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        <Expression as NodeDisplay>::fmt(&self, f)
+        <Expression as NodeDisplay>::fmt(self, f)
     }
 }
 

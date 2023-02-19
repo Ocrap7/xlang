@@ -162,7 +162,7 @@ impl Evaluator {
                 op_token: Some(SpannedToken(_, Token::Operator(o))),
             } => self.evaluate_binary_expression(left, o, right),
             Expression::FunctionCall { expr, args } => {
-                let expr = self.evaluate_expression(&*expr);
+                let expr = self.evaluate_expression(expr);
                 let args = self.evaluate_args(args);
 
                 match (expr.ty, expr.kind) {
@@ -175,7 +175,7 @@ impl Evaluator {
                     ) => {
                         self.wstate().scope.push_scope();
                         // TODO: verify types and such
-                        for (arg, (name, ty)) in args.into_iter().zip(ptypes.into_iter()) {
+                        for (arg, (name, _ty)) in args.into_iter().zip(ptypes.into_iter()) {
                             self.wstate()
                                 .scope
                                 .update_value(&name, ScopeValue::ConstValue(arg));
@@ -241,12 +241,12 @@ impl Evaluator {
             ) => {
                 let right = self.evaluate_expression(right);
                 let scope = &mut self.wstate().scope;
-                if !scope.follow_member_access_mut(dleft, dright, |cv| {
+                let updated_value = scope.follow_member_access_mut(dleft, dright, |cv| {
                     *cv = right.clone();
-                }) {
+                }) ;
+                if !updated_value {
                     return ConstValue::empty();
                 };
-                // *left = right.clone();
                 return right;
             }
             (Operator::Dot, _) => {
@@ -256,7 +256,6 @@ impl Evaluator {
                         ConstValueKind::RecordInstance { members },
                         Expression::Ident(SpannedToken(_, Token::Ident(member))),
                     ) => {
-                        // ConstValue::member_ref(&self.wstate().scope, , member)
                         if let Some(val) = members.get(member) {
                             return val.clone();
                         }

@@ -85,8 +85,8 @@ impl NodeDisplay for Token {
         match self {
             Self::Ident(s) => f.write_str(s),
             Self::Operator(o) => f.write_str(o.as_str()),
-            Self::Integer(i) => write!(f, "{}", i),
-            Self::Float(fl) => write!(f, "{}", fl),
+            Self::Integer(i) => write!(f, "{i}"),
+            Self::Float(fl) => write!(f, "{fl}"),
             Self::Newline => f.write_str("Newline"),
             Self::Whitespace => f.write_str("Whitespace"),
         }
@@ -124,7 +124,7 @@ impl<'a> TokenStream {
         if next_index >= self.tokens.len() {
             return None;
         }
-        Some(&self.tokens[next_index].tok())
+        Some(self.tokens[next_index].tok())
     }
 
     pub fn back(&'a self) {
@@ -137,16 +137,7 @@ impl<'a> TokenStream {
     }
 }
 
-// impl<'a> From<Vec<Token<'a>>> for TokenStream<'a> {
-//     fn from(value: Vec<Token<'a>>) -> Self {
-//         TokenStream {
-//             tokens: value,
-//             next_index: RwLock::new(0),
-//         }
-//     }
-// }
-
-impl<'a> From<Vec<SpannedToken>> for TokenStream {
+impl From<Vec<SpannedToken>> for TokenStream {
     fn from(value: Vec<SpannedToken>) -> Self {
         TokenStream {
             tokens: value,
@@ -179,14 +170,14 @@ impl SpannedToken {
     }
 }
 
-impl<'a> NodeDisplay for SpannedToken {
+impl NodeDisplay for SpannedToken {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Token: ",)?;
         self.1.fmt(f)
     }
 }
 
-impl<'a> TreeDisplay for SpannedToken {
+impl TreeDisplay for SpannedToken {
     fn num_children(&self) -> usize {
         1
     }
@@ -206,46 +197,36 @@ pub struct Span {
 
 impl Span {
     pub fn contains(&self, other: &Span) -> bool {
-        if self.line_num == other.line_num {
-            if other.position < self.position + self.length {
-                return true;
-            }
+        if self.line_num == other.line_num && other.position < self.position + self.length {
+            return true;
         }
         false
     }
 
     pub fn before(&self, other: &Span) -> bool {
-        if self.line_num == other.line_num {
-            if other.position >= self.position + self.length {
-                return true;
-            }
+        if self.line_num == other.line_num && other.position >= self.position + self.length {
+            return true;
         }
         false
     }
 
     pub fn right_before(&self, other: &Span) -> bool {
-        if self.line_num == other.line_num {
-            if other.position == self.position + self.length {
-                return true;
-            }
+        if self.line_num == other.line_num && other.position == self.position + self.length {
+            return true;
         }
         false
     }
 
     pub fn after(&self, other: &Span) -> bool {
-        if self.line_num == other.line_num {
-            if other.position + other.length < self.position {
-                return true;
-            }
+        if self.line_num == other.line_num && other.position + other.length < self.position {
+            return true;
         }
         false
     }
 
     pub fn right_after(&self, other: &Span) -> bool {
-        if self.line_num == other.line_num {
-            if other.position + other.length == self.position {
-                return true;
-            }
+        if self.line_num == other.line_num && other.position + other.length == self.position {
+            return true;
         }
         false
     }

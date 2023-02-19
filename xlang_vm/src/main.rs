@@ -16,7 +16,7 @@ fn main() {
 
     let (module, errors) = Module::parse_str(&input);
     for error in errors {
-        println!("{}", error)
+        println!("{error}")
     }
 
     let evaluator = Evaluator::new(module);
@@ -24,7 +24,7 @@ fn main() {
     let values = evaluator.evaluate();
 
     for value in values {
-        println!("{}", value);
+        println!("{value}");
     }
 
     println!("{}", evaluator.state.read().unwrap().scope.format());

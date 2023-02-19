@@ -1,13 +1,11 @@
-use std::{borrow::BorrowMut, collections::HashMap};
+use std::collections::HashMap;
 
 use xlang_core::{
     ast::Expression,
     token::{Operator, SpannedToken, Token},
 };
 use xlang_util::{
-    format::{
-        BoxedGrouper, BoxedGrouperIter, Grouper, GrouperIter, NodeDisplay, RfGrouper, TreeDisplay,
-    },
+    format::{BoxedGrouper, BoxedGrouperIter, NodeDisplay, TreeDisplay},
     Rf,
 };
 
@@ -77,7 +75,7 @@ impl TreeDisplay for Scope {
         None
     }
 
-    fn child_at_bx<'a>(&'a self, index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
+    fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
         Box::new(BoxedGrouperIter(
             "Children".to_string(),
             self.children.len(),
@@ -148,7 +146,7 @@ impl<'a> ScopeManager {
         &'a mut self,
         left: &Expression,
         right: &Expression,
-        mut cb: impl FnMut(&mut ConstValue),
+        _cb: impl FnMut(&mut ConstValue),
     ) -> bool {
         match (left, right) {
             (Expression::Ident(left), Expression::Ident(right)) => {
@@ -165,7 +163,7 @@ impl<'a> ScopeManager {
                         return false
                     };
 
-                if let Some(m) = members.get_mut(right.as_str()) {
+                if let Some(_m) = members.get_mut(right.as_str()) {
                     // cb(m);
                 }
                 return true;
@@ -210,7 +208,7 @@ impl<'a> ScopeManager {
                 },
                 Expression::Ident(member_right),
             ) => {
-                if self.fom(left, right, |cv| {
+                return self.fom(left, right, |cv| {
                     let ConstValue {
                         ty: Type::RecordInstance { .. },
                         kind: ConstValueKind::RecordInstance { members }
@@ -221,9 +219,7 @@ impl<'a> ScopeManager {
                     if let Some(m) = members.get_mut(member_right.as_str()) {
                         cb(m);
                     }
-                }) {
-                    return true;
-                };
+                });
             }
             _ => (),
         }
@@ -235,7 +231,7 @@ impl<'a> ScopeManager {
         self.current_scope
             .iter()
             .rev()
-            .find_map(|scope| scope.borrow().children.get(name).map(|sym| sym.clone()))
+            .find_map(|scope| scope.borrow().children.get(name).cloned())
     }
 
     // pub fn find_symbol_mut(&mut self, name: &str) -> Option<&mut ScopeValue> {
@@ -267,7 +263,7 @@ impl NodeDisplay for ScopeManager {
     }
 }
 
-impl<'b> TreeDisplay for ScopeManager {
+impl TreeDisplay for ScopeManager {
     fn num_children(&self) -> usize {
         2
     }

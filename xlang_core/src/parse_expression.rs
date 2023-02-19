@@ -33,8 +33,8 @@ impl Parser {
                     let right = self.parse_expression(prec);
 
                     Some(Expression::BinaryExpression {
-                        left: left.map(|f| Box::new(f)),
-                        right: right.map(|f| Box::new(f)),
+                        left: left.map(Box::new),
+                        right: right.map(Box::new),
                         op_token,
                     })
                 }
@@ -110,11 +110,7 @@ impl Parser {
             parameters
         };
 
-        if let Some(parameters) = parameters {
-            Some(Expression::Record { parameters })
-        } else {
-            None
-        }
+        parameters.map(|parameters| Expression::Record { parameters })
     }
 
     pub fn parse_function_body(
@@ -122,7 +118,7 @@ impl Parser {
     ) -> Option<(Option<SpannedToken>, PunctuationList<Statement>)> {
         let first_comma = self.expect_operator(Operator::Comma).cloned();
 
-        let mut stmts = PunctuationList::new();
+        let mut stmts = PunctuationList::default();
 
         while let Some(stmt) = self.parse_statement() {
             let comma = if let Some(Token::Operator(Operator::Comma)) = self.tokens.peek() {
@@ -136,9 +132,7 @@ impl Parser {
             }
             if comma.is_none() {
                 self.add_error(ParseError {
-                    kind: ParseErrorKind::InvalidSyntax(format!(
-                        "Expected comma in function body!"
-                    )),
+                    kind: ParseErrorKind::InvalidSyntax("Expected comma in function body!".to_string()),
                     range: Range::default(),
                 });
                 stmts.push(stmt, comma);

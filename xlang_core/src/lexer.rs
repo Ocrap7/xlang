@@ -72,10 +72,10 @@ impl Lexer {
         tokens
     }
 
-    pub fn try_lex<'a>(&mut self, input: &'a str, next: Option<char>) -> Option<Token> {
+    pub fn try_lex(&mut self, input: &str, next: Option<char>) -> Option<Token> {
         if input.len() == 1 {
             // match single character symbols
-            match input.chars().nth(0) {
+            match input.chars().next() {
                 Some('[') => return Some(Token::Operator(Operator::OpenSquare)),
                 Some(']') => return Some(Token::Operator(Operator::CloseSquare)),
                 Some('(') => return Some(Token::Operator(Operator::OpenParen)),
@@ -105,24 +105,19 @@ impl Lexer {
             }
         }
 
-        match (input.chars().nth(0), input.chars().nth(1)) {
+        match (input.chars().next(), input.chars().nth(1)) {
             (Some('*'), Some('*')) => return Some(Token::Operator(Operator::Exponent)),
             (Some('-'), Some('>')) => return Some(Token::Operator(Operator::Arrow)),
             _ => (),
         }
 
-        let del = match next.map(|c| !(c.is_numeric() || c == '.')) {
-            None => true,
-            Some(t) => t,
-        };
+        let del = next.map(|c| !(c.is_numeric() || c == '.')).unwrap_or(true);
 
         let cnt = input
             .chars()
             .fold(0u8, |acc, c| if c == '.' { 1 + acc } else { acc });
-        if input
-            .chars()
-            .find(|c| !(c.is_numeric() || *c == '.'))
-            .is_none()
+        if !input
+            .chars().any(|c| !(c.is_numeric() || c == '.'))
             && cnt <= 1
             && del
         {
@@ -136,21 +131,15 @@ impl Lexer {
         }
 
         // If the next character is a delimeter
-        let del = match next.map(|c| !(c.is_alphanumeric() || c == '_')) {
-            None => true,
-            Some(t) => t,
-        };
+        let del = next.map(|c| !(c.is_alphanumeric() || c == '_')).unwrap_or(true);
 
         // match identifiers
         if input
-            .chars()
-            .nth(0)
+            .chars().next()
             .filter(|f| f.is_alphabetic() || *f == '_')
             .is_some()
-            & input
-                .chars()
-                .find(|c| !(c.is_alphanumeric() || *c == '_'))
-                .is_none()
+            & !input
+                .chars().any(|c| !(c.is_alphanumeric() || c == '_'))
             && del
         {
             return Some(Token::Ident(input.to_string()));

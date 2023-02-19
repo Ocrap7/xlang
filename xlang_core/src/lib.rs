@@ -24,7 +24,7 @@ use token::{SpannedToken, Token};
 impl Module {
     pub fn parse_str(input: &str) -> (Module, Vec<ParseError>) {
         let mut lexer = Lexer {};
-        let tokens = lexer.lex(&input);
+        let tokens = lexer.lex(input);
 
         let parser = Parser::new(tokens);
         let parsed = parser.parse().unwrap();
@@ -41,7 +41,7 @@ impl Module {
                     if let (Some(SpannedToken(_, Token::Ident(ident))), Some(ty)) =
                         (&param.name, &param.ty)
                     {
-                        Symbol::insert(&ud, &ident, SymbolKind::Parameter { ty: ty.clone() });
+                        Symbol::insert(&ud, ident, SymbolKind::Parameter { ty: ty.clone() });
                     }
                 }
                 ud
@@ -51,7 +51,7 @@ impl Module {
                     if let (Some(SpannedToken(_, Token::Ident(ident))), Some(ty)) =
                         (&param.name, &param.ty)
                     {
-                        Symbol::insert(&ud, &ident, SymbolKind::ReturnParameter { ty: ty.clone() });
+                        Symbol::insert(&ud, ident, SymbolKind::ReturnParameter { ty: ty.clone() });
                     }
                 }
                 ud
@@ -85,7 +85,7 @@ impl Module {
                             })
                             .collect();
                         if let Some(res) = res {
-                            let cd = Symbol::insert(&ud, &"use", SymbolKind::Use(res));
+                            let cd = Symbol::insert(&ud, "use", SymbolKind::Use(res));
                             return (cd, ud);
                         }
                     }
@@ -138,15 +138,14 @@ impl Module {
         self.impl_resolve_symbol_in_scope(symbol, &sym)
     }
 
-    pub fn impl_resolve_symbol_in_scope<'a>(
+    pub fn impl_resolve_symbol_in_scope(
         &self,
         symbol: &str,
         node: &Rf<Symbol>,
     ) -> Option<Rf<Symbol>> {
         let nodev = node.borrow();
-        match nodev.kind {
-            SymbolKind::Use(_) => return None,
-            _ => (),
+        if let SymbolKind::Use(_) = &nodev.kind {
+            return None;
         }
         if let Some(child) = nodev.children.get(symbol) {
             Some(child.clone())
@@ -177,18 +176,17 @@ impl Module {
         &self,
         iter: impl Iterator<Item = &'a usize>,
     ) -> Option<Rf<Symbol>> {
-        self.impl_resolve_symbol_chain_indicies(&self.symbol_tree, iter)
+        Module::impl_resolve_symbol_chain_indicies(&self.symbol_tree, iter)
             .ok()
     }
 
     fn impl_resolve_symbol_chain_indicies<'a>(
-        &self,
         last: &Rf<Symbol>,
         mut iter: impl Iterator<Item = &'a usize>,
     ) -> Result<Rf<Symbol>, bool> {
         if let Some(index) = iter.next() {
             if let Some(s) = last.borrow().children.values().nth(*index) {
-                match self.impl_resolve_symbol_chain_indicies(s, iter) {
+                match Module::impl_resolve_symbol_chain_indicies(s, iter) {
                     Ok(n) => return Ok(n),
                     Err(true) => return Ok(s.clone()),
                     _ => (),
@@ -204,14 +202,14 @@ impl Module {
         &self,
         iter: impl Iterator<Item = &'a SpannedToken>,
     ) -> Option<Rf<Symbol>> {
-        self.impl_resolve_from_iter(&self.symbol_tree, iter).ok()
+        Module::impl_resolve_from_iter(&self.symbol_tree, iter).ok()
     }
 
     pub fn resolve_symbol_chain_string<'a>(
         &self,
         iter: impl Iterator<Item = &'a String>,
     ) -> Option<Rf<Symbol>> {
-        self.impl_resolve_from_iter_string(&self.symbol_tree, iter)
+        Module::impl_resolve_from_iter_string(&self.symbol_tree, iter)
             .ok()
     }
 
@@ -220,11 +218,10 @@ impl Module {
         iter: impl Iterator<Item = &'a SpannedToken>,
         f: F,
     ) {
-        self.impl_iter_symbol(&self.symbol_tree, iter, f);
+        Module::impl_iter_symbol(&self.symbol_tree, iter, f);
     }
 
     fn impl_iter_symbol<'a, F: FnMut(&SpannedToken, &Rf<Symbol>)>(
-        &self,
         last: &Rf<Symbol>,
         mut iter: impl Iterator<Item = &'a SpannedToken>,
         mut f: F,
@@ -232,19 +229,18 @@ impl Module {
         if let Some(tok @ SpannedToken(_, Token::Ident(i))) = iter.next() {
             if let Some(s) = last.borrow().children.get(i) {
                 f(tok, s);
-                self.impl_iter_symbol(s, iter, f);
+                Module::impl_iter_symbol(s, iter, f);
             }
         }
     }
 
     fn impl_resolve_from_iter<'a>(
-        &self,
         last: &Rf<Symbol>,
         mut iter: impl Iterator<Item = &'a SpannedToken>,
     ) -> Result<Rf<Symbol>, bool> {
         if let Some(SpannedToken(_, Token::Ident(i))) = iter.next() {
             if let Some(s) = last.borrow().children.get(i) {
-                match self.impl_resolve_from_iter(s, iter) {
+                match Module::impl_resolve_from_iter(s, iter) {
                     Ok(n) => return Ok(n),
                     Err(true) => return Ok(s.clone()),
                     _ => (),
@@ -257,13 +253,12 @@ impl Module {
     }
 
     fn impl_resolve_from_iter_string<'a>(
-        &self,
         last: &Rf<Symbol>,
         mut iter: impl Iterator<Item = &'a String>,
     ) -> Result<Rf<Symbol>, bool> {
         if let Some(i) = iter.next() {
             if let Some(s) = last.borrow().children.get(i) {
-                match self.impl_resolve_from_iter_string(s, iter) {
+                match Module::impl_resolve_from_iter_string(s, iter) {
                     Ok(n) => return Ok(n),
                     Err(true) => return Ok(s.clone()),
                     _ => (),
@@ -351,7 +346,7 @@ impl Symbol {
                 .enumerate()
                 .map(|(i, _)| i)
                 .find_map(|v| {
-                    let val = format!("{}", v);
+                    let val = format!("{v}");
                     if symb.children.get(&val).is_none() {
                         Some(val)
                     } else {
