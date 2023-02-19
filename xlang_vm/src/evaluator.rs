@@ -227,6 +227,7 @@ impl Evaluator {
                         ConstValueKind::RecordInstance { members },
                         Expression::Ident(SpannedToken(_, Token::Ident(member))),
                     ) => {
+
                         if let Some(val) = members.get(member) {
                             return val.clone()
                         } 
