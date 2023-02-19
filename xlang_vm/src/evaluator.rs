@@ -220,6 +220,22 @@ impl Evaluator {
                     .update_value(name, ScopeValue::ConstValue(right.clone()));
                 return right;
             }
+            (
+                Operator::Equals,
+                Expression::BinaryExpression {
+                    op_token: Some(SpannedToken(_, Token::Operator(Operator::Dot))),
+                    left: Some(dleft),
+                    right: Some(dright),
+                },
+            ) => {
+                let right = self.evaluate_expression(right);
+                let scope = &mut self.wstate().scope;
+                let Some(left) = scope.follow_member_access_mut(dleft, dright) else {
+                    return ConstValue::empty();
+                };
+                *left = right.clone();
+                return right;
+            }
             (Operator::Dot, _) => {
                 let left = self.evaluate_expression(left);
                 match (left.kind, right) {
@@ -227,12 +243,12 @@ impl Evaluator {
                         ConstValueKind::RecordInstance { members },
                         Expression::Ident(SpannedToken(_, Token::Ident(member))),
                     ) => {
-
+                        // ConstValue::member_ref(&self.wstate().scope, , member)
                         if let Some(val) = members.get(member) {
-                            return val.clone()
-                        } 
+                            return val.clone();
+                        }
                     }
-                    _ => ()
+                    _ => (),
                 }
             }
             _ => (),

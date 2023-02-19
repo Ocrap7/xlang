@@ -1,4 +1,8 @@
 
 func: (i8 a, i8 b) -> (i8 s), s = a + b
 
-func(7, 8)
+val: func(7, 8)
+
+val.s = 8
+
+val.s

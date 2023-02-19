@@ -1,8 +1,12 @@
 use std::collections::HashMap;
 
+use xlang_core::{
+    ast::Expression,
+    token::{Operator, SpannedToken, Token},
+};
 use xlang_util::format::{Grouper, NodeDisplay, TreeDisplay};
 
-use crate::const_value::{ConstValue, Type};
+use crate::const_value::{ConstValue, ConstValueKind, Type};
 
 #[derive(Clone)]
 pub enum ScopeValue {
@@ -104,6 +108,47 @@ impl ScopeManager {
             if let Some(sym) = scp.symbols.get(&scope_ref.1) {
                 return Some(sym);
             }
+        }
+
+        None
+    }
+
+    pub fn follow_member_access_mut(
+        &mut self,
+        left: &Expression,
+        right: &Expression,
+    ) -> Option<&mut ConstValue> {
+        match (left, right) {
+            (Expression::Ident(left), Expression::Ident(right)) => {
+                let ScopeValue::ConstValue(
+                        ConstValue {
+                            ty: Type::RecordInstance { .. },
+                            kind: ConstValueKind::RecordInstance { members }
+                        }
+                    ) = self.find_symbol_mut(left.as_str())? else {
+                        return None
+                    };
+
+                return members.get_mut(right.as_str());
+            }
+            (
+                Expression::BinaryExpression {
+                    op_token: Some(SpannedToken(_, Token::Operator(Operator::Dot))),
+                    left: Some(left),
+                    right: Some(right),
+                },
+                Expression::Ident(member_right),
+            ) => {
+                let ConstValue {
+                    ty: Type::RecordInstance { .. },
+                    kind: ConstValueKind::RecordInstance { members }
+                } = self.follow_member_access_mut(left, right)? else {
+                    return None
+                };
+
+                return members.get_mut(member_right.as_str());
+            }
+            _ => (),
         }
 
         None

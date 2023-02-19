@@ -70,7 +70,8 @@ impl Module {
                             Some(Expression::Function { .. }) => {
                                 Symbol::insert(&ud, id, SymbolKind::Function {})
                             }
-                            _ => Symbol::insert(&ud, id, SymbolKind::Variable {}),
+                            // _ => Symbol::insert(&ud, id, SymbolKind::Variable {}),
+                            _ => ud.clone()
                         };
 
                         return (cd, ud);
@@ -94,6 +95,8 @@ impl Module {
             });
 
         md.descend(&parsed);
+
+        println!("Mod: {}", mods.format());
 
         (
             Module {

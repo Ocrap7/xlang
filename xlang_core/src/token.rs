@@ -170,6 +170,13 @@ impl SpannedToken {
     pub fn span(&self) -> &Span {
         &self.0
     }
+
+    pub fn as_str(&self) -> &str {
+        match &self.1 {
+            Token::Ident(id) => id,
+            _ => panic!("Expected to be identifier"),
+        }
+    }
 }
 
 impl<'a> NodeDisplay for SpannedToken {
