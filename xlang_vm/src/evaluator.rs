@@ -5,15 +5,15 @@ use std::{
 
 use linked_hash_map::LinkedHashMap;
 use xlang_core::{
-    ast::{ArgList, Expression, ParamaterList, Statement, AstNode},
-    token::{Operator, SpannedToken, Token},
+    ast::{ArgList, AstNode, Expression, ParamaterList, Statement},
+    token::{Operator, Range, SpannedToken, Token},
     Module,
 };
 use xlang_util::format::TreeDisplay;
 
 use crate::{
     const_value::{ConstValue, ConstValueKind, Type},
-    error::{EvaluationError, EvaluationErrorKind},
+    error::{EvaluationError, EvaluationErrorKind, TypeHint},
     scope::{ScopeManager, ScopeValue},
 };
 
@@ -152,11 +152,14 @@ impl Evaluator {
             Expression::Ident(SpannedToken(_, Token::Ident(id))) => {
                 let sym = self.rstate().scope.find_symbol(id);
                 if let Some(sym) = sym {
-                    let sym = sym.borrow();
-                    if let ScopeValue::ConstValue(cv) = &sym.value {
-                        cv.clone()
-                    } else {
-                        ConstValue::empty()
+                    let symv = sym.borrow();
+                    match &symv.value {
+                        ScopeValue::ConstValue(cv) => cv.clone(),
+                        ScopeValue::Record { ident, members } => ConstValue {
+                            ty: Type::Symbol(sym.clone()),
+                            kind: ConstValueKind::Empty,
+                        },
+                        _ => ConstValue::empty(),
                     }
                 } else {
                     ConstValue::empty()
@@ -167,11 +170,15 @@ impl Evaluator {
                 right: Some(right),
                 op_token: Some(SpannedToken(_, Token::Operator(o))),
             } => self.evaluate_binary_expression(left, o, right),
-            Expression::FunctionCall { expr, args: raw_args } => {
+            Expression::FunctionCall {
+                expr,
+                args: raw_args,
+            } => {
                 let expr = self.evaluate_expression(expr);
                 let args = self.evaluate_args(raw_args);
 
                 match (expr.ty, expr.kind) {
+                    // Function is called
                     (
                         Type::Function {
                             parameters: ptypes,
@@ -179,18 +186,41 @@ impl Evaluator {
                         },
                         ConstValueKind::Function { body, rf },
                     ) => {
-                        self.wstate().scope.push_scope(rf);
-                        for (i, (arg, (name, ty))) in args.into_iter().zip(ptypes.into_iter()).enumerate() {
-                            if arg.ty != ty {
-                                self.add_error(EvaluationError {
-                                    kind: EvaluationErrorKind::TypeMismatch(arg.ty, ty),
-                                    range: raw_args.items.iter_items().nth(i).unwrap().get_range(),
-                                });
-                                return ConstValue::empty();
-                            }
-                            self.wstate()
-                                .scope
-                                .update_value(&name, ScopeValue::ConstValue(arg));
+                        self.wstate().scope.push_scope(rf.clone());
+
+                        let has_args: Option<Vec<_>> = args
+                            .into_iter()
+                            .zip(ptypes.into_iter())
+                            .enumerate()
+                            .map(|(i, (arg, (name, ty)))| {
+                                let arg = arg.try_implicit_cast(&ty).unwrap_or(arg);
+
+                                if arg.ty != ty {
+                                    self.add_error(EvaluationError {
+                                        kind: EvaluationErrorKind::TypeMismatch(
+                                            arg.ty,
+                                            ty,
+                                            TypeHint::Parameter,
+                                        ),
+                                        range: raw_args
+                                            .items
+                                            .iter_items()
+                                            .nth(i)
+                                            .unwrap()
+                                            .get_range(),
+                                    });
+                                    return None;
+                                }
+                                self.wstate()
+                                    .scope
+                                    .update_value(&name, ScopeValue::ConstValue(arg));
+
+                                Some(())
+                            })
+                            .collect();
+
+                        if has_args.is_none() {
+                            return ConstValue::empty();
                         }
 
                         let _ = self.evaluate_statement(&body);
@@ -204,22 +234,81 @@ impl Evaluator {
                                 let vl = if let Some(sym) = sym {
                                     let sym = sym.borrow();
                                     if let ScopeValue::ConstValue(cv) = &sym.value {
-                                        cv.clone()
+                                        if cv.ty == ty {
+                                            cv.clone()
+                                        } else {
+                                            // TODO: error handling
+                                            ConstValue::empty()
+                                        }
                                     } else {
+                                        // TODO: error handling
                                         ConstValue::empty()
                                     }
                                 } else {
+                                    self.add_error(EvaluationError {
+                                        kind: EvaluationErrorKind::NotInitialized {
+                                            hint: TypeHint::ReturnParameter,
+                                        },
+                                        range: expression.get_range(),
+                                    });
                                     ConstValue::default_for(ty)
                                 };
                                 (name, vl)
                             })
                             .collect();
 
-                        let value = ConstValue::record_instance(return_values);
+                        let value = ConstValue::record_instance(rf.clone(), return_values);
 
                         self.wstate().scope.pop_scope();
 
                         value
+                    }
+                    // Record is instantiated
+                    (Type::Symbol(sym), _) => {
+                        if let ScopeValue::Record { members, .. } = &sym.borrow().value {
+                            let len_off = members.len() != args.len();
+                            let args_vals: LinkedHashMap<_, _> = members
+                                .iter()
+                                .zip(args.into_iter())
+                                .enumerate()
+                                .filter_map(|(i, ((name, ty), arg))| {
+                                    let arg = arg.try_implicit_cast(&ty).unwrap_or(arg);
+                                    if &arg.ty == ty {
+                                        Some((name.clone(), arg))
+                                    } else {
+                                        self.add_error(EvaluationError {
+                                            kind: EvaluationErrorKind::TypeMismatch(
+                                                arg.ty,
+                                                ty.clone(),
+                                                TypeHint::Parameter,
+                                            ),
+                                            range: raw_args
+                                                .items
+                                                .iter_items()
+                                                .nth(i)
+                                                .unwrap()
+                                                .get_range(),
+                                        });
+                                        None
+                                    }
+                                })
+                                .collect();
+
+                            if len_off {
+                                // If the number of arguments doesn't match the record
+                                self.add_error(EvaluationError {
+                                    kind: EvaluationErrorKind::ArgCountMismatch(
+                                        raw_args.len() as _,
+                                        members.len() as _,
+                                    ),
+                                    range: raw_args.get_range(),
+                                });
+                            } else if args_vals.len() == members.len() {
+                                // Everything good!
+                                return ConstValue::record_instance(sym.clone(), args_vals);
+                            }
+                        }
+                        ConstValue::empty()
                     }
                     // TODO: throw error
                     _ => ConstValue::empty(),
@@ -231,13 +320,13 @@ impl Evaluator {
 
     pub fn evaluate_binary_expression(
         &self,
-        left: &Expression,
+        raw_left: &Expression,
         op: &Operator,
-        right: &Expression,
+        raw_right: &Expression,
     ) -> ConstValue {
-        match (op, left) {
+        match (op, raw_left) {
             (Operator::Equals, Expression::Ident(SpannedToken(_, Token::Ident(name)))) => {
-                let right = self.evaluate_expression(right);
+                let right = self.evaluate_expression(raw_right);
                 self.wstate()
                     .scope
                     .update_value(name, ScopeValue::ConstValue(right.clone()));
@@ -251,7 +340,7 @@ impl Evaluator {
                     right: Some(dright),
                 },
             ) => {
-                let right = self.evaluate_expression(right);
+                let right = self.evaluate_expression(raw_right);
                 let scope = &mut self.wstate().scope;
                 let updated_value = scope.follow_member_access_mut(dleft, dright, |cv| {
                     *cv = right.clone();
@@ -262,10 +351,10 @@ impl Evaluator {
                 return right;
             }
             (Operator::Dot, _) => {
-                let left = self.evaluate_expression(left);
-                match (left.kind, right) {
+                let left = self.evaluate_expression(raw_left);
+                match (left.kind, raw_right) {
                     (
-                        ConstValueKind::RecordInstance { members },
+                        ConstValueKind::RecordInstance { rf, members },
                         Expression::Ident(SpannedToken(_, Token::Ident(member))),
                     ) => {
                         if let Some(val) = members.get(member) {
@@ -277,10 +366,10 @@ impl Evaluator {
             }
             _ => (),
         }
-        let left = self.evaluate_expression(left);
-        let right = self.evaluate_expression(right);
+        let left = self.evaluate_expression(raw_left);
+        let right = self.evaluate_expression(raw_right);
 
-        match (left.ty, right.ty) {
+        let res = match (&left.ty, &right.ty) {
             (Type::CoercibleInteger, Type::CoercibleInteger) => match op {
                 Operator::Plus => {
                     ConstValue::cinteger(left.kind.as_integer() + right.kind.as_integer())
@@ -303,28 +392,62 @@ impl Evaluator {
             | (Type::CoercibleInteger, Type::Integer { width, signed }) => match op {
                 Operator::Plus => ConstValue::integer(
                     left.kind.as_integer() + right.kind.as_integer(),
-                    width,
-                    signed,
+                    *width,
+                    *signed,
                 ),
                 Operator::Minus => ConstValue::integer(
                     left.kind.as_integer() - right.kind.as_integer(),
-                    width,
-                    signed,
+                    *width,
+                    *signed,
                 ),
                 Operator::Multiply => ConstValue::integer(
                     left.kind.as_integer() * right.kind.as_integer(),
-                    width,
-                    signed,
+                    *width,
+                    *signed,
                 ),
                 Operator::Divide => ConstValue::integer(
                     left.kind.as_integer() / right.kind.as_integer(),
-                    width,
-                    signed,
+                    *width,
+                    *signed,
                 ),
                 Operator::Exponent => ConstValue::integer(
                     left.kind.as_integer().pow(right.kind.as_integer() as _),
-                    width,
-                    signed,
+                    *width,
+                    *signed,
+                ),
+                _ => ConstValue::empty(),
+            },
+            (
+                Type::Integer { width, signed },
+                Type::Integer {
+                    width: rw,
+                    signed: rs,
+                },
+            ) if width == rw && signed == rs => match op {
+                Operator::Plus => ConstValue::integer(
+                    left.kind.as_integer() + right.kind.as_integer(),
+                    *width,
+                    *signed,
+                ),
+                Operator::Minus => ConstValue::integer(
+                    left.kind.as_integer() - right.kind.as_integer(),
+                    *width,
+                    *signed,
+                ),
+                Operator::Multiply => ConstValue::integer(
+                    left.kind.as_integer() * right.kind.as_integer(),
+                    *width,
+                    *signed,
+                ),
+                Operator::Divide => ConstValue::integer(
+                    left.kind.as_integer() / right.kind.as_integer(),
+                    *width,
+                    *signed,
+                ),
+                Operator::Exponent => ConstValue::integer(
+                    left.kind.as_integer().pow(right.kind.as_integer() as _),
+                    *width,
+                    *signed,
                 ),
                 _ => ConstValue::empty(),
             },
@@ -345,24 +468,51 @@ impl Evaluator {
             (Type::Float { width }, Type::CoercibleFloat)
             | (Type::CoercibleFloat, Type::Float { width }) => match op {
                 Operator::Plus => {
-                    ConstValue::float(left.kind.as_float() + right.kind.as_float(), width)
+                    ConstValue::float(left.kind.as_float() + right.kind.as_float(), *width)
                 }
                 Operator::Minus => {
-                    ConstValue::float(left.kind.as_float() - right.kind.as_float(), width)
+                    ConstValue::float(left.kind.as_float() - right.kind.as_float(), *width)
                 }
                 Operator::Multiply => {
-                    ConstValue::float(left.kind.as_float() * right.kind.as_float(), width)
+                    ConstValue::float(left.kind.as_float() * right.kind.as_float(), *width)
                 }
                 Operator::Divide => {
-                    ConstValue::float(left.kind.as_float() / right.kind.as_float(), width)
+                    ConstValue::float(left.kind.as_float() / right.kind.as_float(), *width)
                 }
                 Operator::Exponent => {
-                    ConstValue::float(left.kind.as_float().powf(right.kind.as_float()), width)
+                    ConstValue::float(left.kind.as_float().powf(right.kind.as_float()), *width)
                 }
                 _ => ConstValue::empty(),
             },
-
+            (Type::Float { width }, Type::Float { width: rw }) if width == rw => match op {
+                Operator::Plus => {
+                    ConstValue::float(left.kind.as_float() + right.kind.as_float(), *width)
+                }
+                Operator::Minus => {
+                    ConstValue::float(left.kind.as_float() - right.kind.as_float(), *width)
+                }
+                Operator::Multiply => {
+                    ConstValue::float(left.kind.as_float() * right.kind.as_float(), *width)
+                }
+                Operator::Divide => {
+                    ConstValue::float(left.kind.as_float() / right.kind.as_float(), *width)
+                }
+                Operator::Exponent => {
+                    ConstValue::float(left.kind.as_float().powf(right.kind.as_float()), *width)
+                }
+                _ => ConstValue::empty(),
+            },
             _ => ConstValue::empty(),
+        };
+
+        if let Type::Empty = &res.ty {
+            self.add_error(EvaluationError {
+                kind: EvaluationErrorKind::BinExpMismatch(op.clone(), left.ty, right.ty),
+                range: Range::from((&raw_left.get_range(), &raw_right.get_range())),
+            });
+            ConstValue::empty()
+        } else {
+            return res;
         }
     }
 
@@ -393,4 +543,3 @@ impl Evaluator {
         self.wstate().errors.push(error)
     }
 }
-

@@ -12,7 +12,7 @@ use xlang_util::{
 
 use crate::scope::{Scope, ScopeValue};
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub enum Type {
     Empty,
     CoercibleInteger,
@@ -32,9 +32,69 @@ pub enum Type {
     Ident(String),
     Tuple(Vec<Type>),
     RecordInstance {
+        rf: Option<Rf<Scope>>,
         members: LinkedHashMap<String, Type>,
     },
 }
+
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Integer {
+                    width: l_width,
+                    signed: l_signed,
+                },
+                Self::Integer {
+                    width: r_width,
+                    signed: r_signed,
+                },
+            ) => l_width == r_width && l_signed == r_signed,
+            (Self::Float { width: l_width }, Self::Float { width: r_width }) => l_width == r_width,
+            (
+                Self::Function {
+                    parameters: l_parameters,
+                    return_parameters: l_return_parameters,
+                },
+                Self::Function {
+                    parameters: r_parameters,
+                    return_parameters: r_return_parameters,
+                },
+            ) => l_parameters == r_parameters && l_return_parameters == r_return_parameters,
+            (Self::Symbol(l0), Self::Symbol(r0)) => l0 == r0,
+            (Self::Ident(l0), Self::Ident(r0)) => l0 == r0,
+            (Self::Tuple(l0), Self::Tuple(r0)) => l0 == r0,
+            (
+                Self::RecordInstance {
+                    rf: l_rf,
+                    members: l_members,
+                },
+                Self::RecordInstance {
+                    rf: r_rf,
+                    members: r_members,
+                },
+            ) => l_rf == r_rf && l_members == r_members,
+            (Self::RecordInstance { rf: Some(l_rf), .. }, Self::Symbol(sym)) => l_rf == sym,
+            (Self::Symbol(sym), Self::RecordInstance { rf: Some(l_rf), .. }) => sym == l_rf,
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
+}
+
+// impl PartialEq for Type {
+//     fn eq(&self, other: &Self) -> bool {
+//         match (self, other) {
+//             (Self::Integer { width: l_width, signed: l_signed }, Self::Integer { width: r_width, signed: r_signed }) => l_width == r_width && l_signed == r_signed,
+//             (Self::Float { width: l_width }, Self::Float { width: r_width }) => l_width == r_width,
+//             (Self::Function { parameters: l_parameters, return_parameters: l_return_parameters }, Self::Function { parameters: r_parameters, return_parameters: r_return_parameters }) => l_parameters == r_parameters && l_return_parameters == r_return_parameters,
+//             (Self::Symbol(l0), Self::Symbol(r0)) => Rf::eq(l0, r0),
+//             (Self::Ident(l0), Self::Ident(r0)) => l0 == r0,
+//             (Self::Tuple(l0), Self::Tuple(r0)) => l0 == r0,
+//             (Self::RecordInstance { members: l_members }, Self::RecordInstance { members: r_members }) => l_members == r_members,
+//             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+//         }
+//     }
+// }
 
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -93,7 +153,7 @@ impl Display for Type {
                 }
                 Ok(())
             }
-            Self::RecordInstance { members } => {
+            Self::RecordInstance { rf, members } => {
                 write!(f, "(")?;
                 let mut iter = members.iter();
 
@@ -157,7 +217,7 @@ impl TreeDisplay for Type {
         match self {
             Type::Function { .. } => 2,
             Type::Tuple(tu) => tu.len(),
-            Type::RecordInstance { members } => members.len(),
+            Type::RecordInstance { rf, members } => members.len(),
             _ => 0,
         }
     }
@@ -186,7 +246,7 @@ impl TreeDisplay for Type {
 
     fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
         match self {
-            Type::RecordInstance { members } => members.child_at_bx(_index),
+            Type::RecordInstance { rf, members } => members.child_at_bx(_index),
             _ => panic!(),
         }
     }
@@ -207,6 +267,7 @@ pub enum ConstValueKind {
     },
     Tuple(Vec<ConstValue>),
     RecordInstance {
+        rf: Rf<Scope>,
         members: LinkedHashMap<String, ConstValue>,
     },
 }
@@ -229,7 +290,7 @@ impl Display for ConstValueKind {
                 }
                 Ok(())
             }
-            ConstValueKind::RecordInstance { members } => {
+            ConstValueKind::RecordInstance { rf, members } => {
                 let mut iter = members.iter();
                 write!(f, "{{ ")?;
                 let Some(item) = iter.next() else {
@@ -261,9 +322,9 @@ impl ConstValueKind {
         }
     }
 
-    pub fn as_record_instance(&self) -> &LinkedHashMap<String, ConstValue> {
+    pub fn as_record_instance(&self) -> (&Rf<Scope>, &LinkedHashMap<String, ConstValue>) {
         match self {
-            ConstValueKind::RecordInstance { members } => members,
+            ConstValueKind::RecordInstance { rf, members } => (rf, members),
             _ => panic!(),
         }
     }
@@ -291,7 +352,7 @@ impl TreeDisplay for ConstValueKind {
         match self {
             ConstValueKind::Function { .. } => 1,
             ConstValueKind::Tuple(list) => list.len(),
-            ConstValueKind::RecordInstance { members } => members.len(),
+            ConstValueKind::RecordInstance { rf, members } => members.len(),
             _ => 0,
         }
     }
@@ -316,7 +377,7 @@ impl TreeDisplay for ConstValueKind {
 
     fn child_at_bx<'a>(&'a self, index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
         match self {
-            ConstValueKind::RecordInstance { members } => members.child_at_bx(index),
+            ConstValueKind::RecordInstance { rf, members } => members.child_at_bx(index),
             _ => panic!(),
         }
     }
@@ -398,13 +459,42 @@ impl ConstValue {
         }
     }
 
-    pub fn record_instance(values: LinkedHashMap<String, ConstValue>) -> ConstValue {
+    pub fn record_instance(
+        sym: Rf<Scope>,
+        values: LinkedHashMap<String, ConstValue>,
+    ) -> ConstValue {
         let types = values.values().map(|val| val.ty.clone());
         let ty = LinkedHashMap::from_iter(values.keys().cloned().zip(types));
 
         ConstValue {
-            ty: Type::RecordInstance { members: ty },
-            kind: ConstValueKind::RecordInstance { members: values },
+            ty: Type::RecordInstance {
+                rf: Some(sym.clone()),
+                members: ty,
+            },
+            kind: ConstValueKind::RecordInstance {
+                rf: sym,
+                members: values,
+            },
+        }
+    }
+
+    pub fn try_implicit_cast(&self, ty: &Type) -> Option<ConstValue> {
+        match (self, ty) {
+            (
+                ConstValue {
+                    kind: ConstValueKind::Integer { value },
+                    ty: Type::CoercibleInteger,
+                },
+                Type::Integer { width, signed },
+            ) => Some(ConstValue::integer(*value, *width, *signed)),
+            (
+                ConstValue {
+                    kind: ConstValueKind::Float { value },
+                    ty: Type::CoercibleFloat,
+                },
+                Type::Float { width },
+            ) => Some(ConstValue::float(*value, *width)),
+            _ => None,
         }
     }
 }

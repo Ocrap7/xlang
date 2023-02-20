@@ -27,25 +27,25 @@ pub enum Operator {
 impl Operator {
     pub fn as_str(&self) -> &str {
         match self {
-            Self::OpenSquare => "`[`",
-            Self::CloseSquare => "`]`",
-            Self::OpenParen => "`(`",
-            Self::CloseParen => "`)`",
-            Self::OpenBrace => "`{`",
-            Self::CloseBrace => "`}`",
+            Self::OpenSquare => "[",
+            Self::CloseSquare => "]",
+            Self::OpenParen => "(",
+            Self::CloseParen => ")",
+            Self::OpenBrace => "{",
+            Self::CloseBrace => "}",
 
-            Self::Dot => "`.`",
-            Self::Colon => "`:`",
-            Self::Comma => "`,`",
-            Self::Arrow => "`->`",
+            Self::Dot => ".",
+            Self::Colon => ":",
+            Self::Comma => ",",
+            Self::Arrow => "->",
 
-            Self::Plus => "`+`",
-            Self::Minus => "`-`",
-            Self::Multiply => "`*`",
-            Self::Divide => "`/`",
-            Self::Exponent => "`**`",
+            Self::Plus => "+",
+            Self::Minus => "-",
+            Self::Multiply => "*",
+            Self::Divide => "/",
+            Self::Exponent => "**",
 
-            Self::Equals => "`=`",
+            Self::Equals => "=",
         }
     }
 }

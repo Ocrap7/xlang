@@ -40,7 +40,9 @@ pub struct PunctuationList<T: AstNode> {
 
 impl<T: AstNode> Default for PunctuationList<T> {
     fn default() -> Self {
-        Self { tokens: Vec::default() }
+        Self {
+            tokens: Vec::default(),
+        }
     }
 }
 
@@ -63,6 +65,10 @@ impl<T: AstNode> PunctuationList<T> {
 
     pub fn iter(&self) -> impl Iterator<Item = &(T, Option<SpannedToken>)> + '_ {
         self.tokens.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.tokens.len()
     }
 }
 
@@ -210,6 +216,10 @@ impl AstNode for ArgList {
 impl ArgList {
     pub fn iter_items(&self) -> impl Iterator<Item = &Expression> + '_ {
         self.items.iter_items()
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.len()
     }
 }
 

@@ -171,7 +171,7 @@ impl<'a> ScopeManager {
                 let ScopeValue::ConstValue(
                         ConstValue {
                             ty: Type::RecordInstance { .. },
-                            kind: ConstValueKind::RecordInstance { members }
+                            kind: ConstValueKind::RecordInstance { rf, members }
                         }
                     ) = &mut sym.value else {
                         return false
@@ -203,7 +203,7 @@ impl<'a> ScopeManager {
                 let ScopeValue::ConstValue(
                         ConstValue {
                             ty: Type::RecordInstance { .. },
-                            kind: ConstValueKind::RecordInstance { members }
+                            kind: ConstValueKind::RecordInstance { rf, members }
                         }
                     ) = &mut sym.value else {
                         return false
@@ -225,7 +225,7 @@ impl<'a> ScopeManager {
                 return self.fom(left, right, |cv| {
                     let ConstValue {
                         ty: Type::RecordInstance { .. },
-                        kind: ConstValueKind::RecordInstance { members }
+                        kind: ConstValueKind::RecordInstance { rf, members }
                     } = cv else {
                         return;
                     };
