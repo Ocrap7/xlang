@@ -10,7 +10,7 @@ use tower_lsp::{lsp_types::*, LanguageServer};
 use tower_lsp::{Client, LspService, Server};
 use xlang_core::ast::{ArgList, AstNode, Expression, ParamaterList, Statement, Type};
 use xlang_core::token::{Operator, Span, SpannedToken, Token};
-use xlang_core::{Module};
+use xlang_core::Module;
 
 struct ReadDirectoryRequest {}
 
@@ -464,10 +464,7 @@ impl LanguageServer for Backend {
                 .find_map(|f| self.bsearch_statement(mods, f, &sp));
 
             if items.is_none() {
-                if !mods
-                    .stmts
-                    .iter().any(|f| f.get_range().contains(&sp))
-                {
+                if !mods.stmts.iter().any(|f| f.get_range().contains(&sp)) {
                     Some(
                         self.element_names
                             .iter()
@@ -507,7 +504,7 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        let out = xlang_core::Module::parse_str(&params.text_document.text);
+        let out = xlang_core::Module::parse_str(&params.text_document.text, "mymod");
         println!("tree {}", out.0.format());
 
         for err in out.1 {
@@ -524,7 +521,7 @@ impl LanguageServer for Backend {
         for change in params.content_changes {
             let text = change.text;
 
-            let out = xlang_core::Module::parse_str(&text);
+            let out = xlang_core::Module::parse_str(&text, "mymod");
             println!("{}", out.0.format());
 
             for err in out.1 {
@@ -573,7 +570,6 @@ async fn main() {
 
     let (service, socket) = LspService::new(|client| {
         let client = Arc::new(client);
-        
 
         Backend {
             element_names: HashSet::from_iter(["style".into(), "view".into(), "setup".into()]),

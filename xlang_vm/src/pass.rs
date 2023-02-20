@@ -13,6 +13,7 @@ use xlang_util::Rf;
 
 use crate::{
     const_value::{ConstValue, Type},
+    error::EvaluationError,
     scope::{Scope, ScopeManager, ScopeValue},
 };
 
@@ -23,6 +24,7 @@ pub enum PassType {
 
 pub struct CodePassState {
     pub scope: ScopeManager,
+    pub errors: Vec<EvaluationError>,
 }
 
 pub struct CodePass {
@@ -32,12 +34,13 @@ pub struct CodePass {
 }
 
 impl CodePass {
-    pub fn new(module: Rc<Module>) -> CodePass {
-        let scope = Rf::new(Scope::new(ScopeValue::Module));
+    pub fn new(root: Rf<Scope>, module: Rc<Module>) -> CodePass {
+        let scope = Rf::new(Scope::new(ScopeValue::Module(module.clone())));
         CodePass {
             module,
             state: RwLock::new(CodePassState {
-                scope: ScopeManager::new(scope),
+                scope: ScopeManager::new(root, scope),
+                errors: Vec::new(),
             }),
             pass: PassType::TypeOnly,
         }
@@ -53,7 +56,7 @@ impl CodePass {
 }
 
 impl CodePass {
-    pub fn run(mut self) -> ScopeManager {
+    pub fn run(mut self) -> CodePassState {
         for stmt in &self.module.stmts {
             self.evaluate_statement(stmt);
         }
@@ -63,7 +66,7 @@ impl CodePass {
             self.evaluate_statement(stmt);
         }
 
-        self.state.into_inner().unwrap().scope
+        self.state.into_inner().unwrap()
     }
 
     pub fn evaluate_statement(&self, statement: &Statement) {
@@ -151,8 +154,8 @@ impl CodePass {
 
     pub fn evaluate_params(&self, params: &ParamaterList) -> LinkedHashMap<String, Type> {
         let iter = params.items.iter_items().filter_map(|f| {
-            if let (Some(SpannedToken(_, Token::Ident(name))), Some(ty)) = (&f.name, &f.ty) {
-                Some((name.clone(), self.evaluate_type(ty)))
+            if let (Some(ident), Some(ty)) = (&f.name, &f.ty) {
+                Some((ident.as_str().to_string(), self.evaluate_type(ty)))
             } else {
                 None
             }
@@ -168,12 +171,19 @@ impl CodePass {
             },
             xlang_core::ast::Type::Float { width, .. } => Type::Float { width: *width },
             xlang_core::ast::Type::Ident(id) => {
-                if let Some(sym) = self.rstate().scope.find_symbol(id.as_str()) {
-                    Type::Symbol(sym)
-                } else {
-                    Type::Empty
+                if let Some(sym) = { self.rstate().scope.find_symbol(id.as_str()) } {
+                    return Type::Symbol(sym);
                 }
+                // self.add_error(EvaluationError {
+                //     kind: EvaluationErrorKind::SymbolNotFound(id.as_str().to_string()),
+                //     range: id.get_range(),
+                // });
+                return Type::Empty;
             }
         }
+    }
+
+    fn add_error(&self, error: EvaluationError) {
+        self.wstate().errors.push(error)
     }
 }

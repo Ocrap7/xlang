@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Display},
-};
+use std::{fmt::{Debug, Display}, rc::Rc};
 
 use linked_hash_map::LinkedHashMap;
 use xlang_core::ast::Statement;
@@ -126,7 +123,7 @@ impl Display for Type {
                 for val in iter {
                     write!(f, " ,{} {}", val.1, val.0)?;
                 }
-                write!(f, ") -> (");
+                write!(f, ") -> (")?;
                 let mut iter = return_parameters.iter();
 
                 if let Some(val) = iter.next() {
@@ -153,7 +150,7 @@ impl Display for Type {
                 }
                 Ok(())
             }
-            Self::RecordInstance { rf, members } => {
+            Self::RecordInstance { members, .. } => {
                 write!(f, "(")?;
                 let mut iter = members.iter();
 
@@ -217,7 +214,7 @@ impl TreeDisplay for Type {
         match self {
             Type::Function { .. } => 2,
             Type::Tuple(tu) => tu.len(),
-            Type::RecordInstance { rf, members } => members.len(),
+            Type::RecordInstance { members, ..} => members.len(),
             _ => 0,
         }
     }
@@ -246,7 +243,7 @@ impl TreeDisplay for Type {
 
     fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
         match self {
-            Type::RecordInstance { rf, members } => members.child_at_bx(_index),
+            Type::RecordInstance { members, .. } => members.child_at_bx(_index),
             _ => panic!(),
         }
     }
@@ -265,6 +262,11 @@ pub enum ConstValueKind {
         rf: Rf<Scope>,
         body: Statement,
     },
+    NativeFunction {
+        rf: Rf<Scope>,
+        callback:
+            Rc<dyn Fn(&LinkedHashMap<String, ConstValue>) -> LinkedHashMap<String, ConstValue>>,
+    },
     Tuple(Vec<ConstValue>),
     RecordInstance {
         rf: Rf<Scope>,
@@ -279,6 +281,7 @@ impl Display for ConstValueKind {
             ConstValueKind::Integer { value } => write!(f, "{value}"),
             ConstValueKind::Float { value } => write!(f, "{value}"),
             ConstValueKind::Function { body, .. } => write!(f, "{}", body.format()),
+            ConstValueKind::NativeFunction { .. } => write!(f, "Native Function"),
             ConstValueKind::Tuple(list) => {
                 let mut iter = list.iter();
                 let Some(item) = iter.next() else {
@@ -290,7 +293,7 @@ impl Display for ConstValueKind {
                 }
                 Ok(())
             }
-            ConstValueKind::RecordInstance { rf, members } => {
+            ConstValueKind::RecordInstance { members, .. } => {
                 let mut iter = members.iter();
                 write!(f, "{{ ")?;
                 let Some(item) = iter.next() else {
@@ -341,6 +344,7 @@ impl NodeDisplay for ConstValueKind {
             ConstValueKind::Integer { value } => write!(f, "Integer: {value}"),
             ConstValueKind::Float { value } => write!(f, "Float: {value}"),
             ConstValueKind::Function { .. } => write!(f, "Function"),
+            ConstValueKind::NativeFunction { .. } => write!(f, "Native Function"),
             ConstValueKind::Tuple(_) => write!(f, "Tuple"),
             ConstValueKind::RecordInstance { .. } => write!(f, "Record Instance"),
         }
@@ -352,7 +356,7 @@ impl TreeDisplay for ConstValueKind {
         match self {
             ConstValueKind::Function { .. } => 1,
             ConstValueKind::Tuple(list) => list.len(),
-            ConstValueKind::RecordInstance { rf, members } => members.len(),
+            ConstValueKind::RecordInstance { members, .. } => members.len(),
             _ => 0,
         }
     }
@@ -377,7 +381,7 @@ impl TreeDisplay for ConstValueKind {
 
     fn child_at_bx<'a>(&'a self, index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
         match self {
-            ConstValueKind::RecordInstance { rf, members } => members.child_at_bx(index),
+            ConstValueKind::RecordInstance {  members, .. } => members.child_at_bx(index),
             _ => panic!(),
         }
     }

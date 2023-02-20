@@ -94,6 +94,7 @@ pub enum EvaluationErrorKind {
     ArgCountMismatch(u8, u8),
     NotInitialized { hint: TypeHint },
     BinExpMismatch(Operator, Type, Type),
+    SymbolNotFound(String),
 }
 
 impl EvaluationErrorKind {
@@ -102,6 +103,7 @@ impl EvaluationErrorKind {
             EvaluationErrorKind::TypeMismatch(_, _, _) => ErrorLevel::Error,
             EvaluationErrorKind::ArgCountMismatch(_, _) => ErrorLevel::Error,
             EvaluationErrorKind::BinExpMismatch(_, _, _) => ErrorLevel::Error,
+            EvaluationErrorKind::SymbolNotFound(_) => ErrorLevel::Error,
 
             EvaluationErrorKind::NotInitialized { .. } => ErrorLevel::Warning,
         }
@@ -146,6 +148,9 @@ impl EvaluationErrorKind {
                     r.to_string().bold()
                 )]
             }
+            Self::SymbolNotFound(sym) => {
+                vec![format!("symbol `{}` not found in scope", sym.bold(),)]
+            }
             _ => vec![],
         }
     }
@@ -175,9 +180,13 @@ impl Display for EvaluationErrorKind {
             Self::NotInitialized { .. } => {
                 f.write_str(&"never initialized".bold().bright_white().to_string())
             }
-            Self::BinExpMismatch { .. } => {
-                f.write_str(&"operation cannot be evaluated".bold().bright_white().to_string())
-            }
+            Self::BinExpMismatch { .. } => f.write_str(
+                &"operation cannot be evaluated"
+                    .bold()
+                    .bright_white()
+                    .to_string(),
+            ),
+            Self::SymbolNotFound(_) => f.write_str("symbol not found"),
         }
     }
 }

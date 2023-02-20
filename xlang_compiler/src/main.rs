@@ -8,5 +8,5 @@ fn main() {
     let mut input = String::new();
     file.read_to_string(&mut input).unwrap();
 
-    let _parsed = Module::parse_str(&input);
+    let _parsed = Module::parse_str(&input, "mymod");
 }

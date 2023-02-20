@@ -104,14 +104,14 @@ impl Evaluator {
                 );
             }
             Statement::Decleration {
-                ident: SpannedToken(_, Token::Ident(id)),
+                ident,
                 expr: Some(expr),
                 ..
             } => {
                 let expr = self.evaluate_expression(expr);
                 self.wstate()
                     .scope
-                    .update_value(id, ScopeValue::ConstValue(expr));
+                    .update_value(ident.as_str(), ScopeValue::ConstValue(expr));
             }
             Statement::Expression(expr) => return self.evaluate_expression(expr),
             Statement::List(list) => {
@@ -129,6 +129,14 @@ impl Evaluator {
                     return ConstValue::tuple(values);
                 }
             }
+
+            Statement::UseStatement { args, .. } => {
+                let path = args
+                    .iter_items()
+                    .map(|sym| sym.as_str().to_string())
+                    .collect();
+                self.wstate().scope.add_use(path)
+            }
             _ => (),
         }
         ConstValue::empty()
@@ -136,8 +144,8 @@ impl Evaluator {
 
     pub fn evaluate_params(&self, params: &ParamaterList) -> LinkedHashMap<String, Type> {
         let iter = params.items.iter_items().filter_map(|f| {
-            if let (Some(SpannedToken(_, Token::Ident(name))), Some(ty)) = (&f.name, &f.ty) {
-                Some((name.clone(), self.evaluate_type(ty)))
+            if let (Some(ident), Some(ty)) = (&f.name, &f.ty) {
+                Some((ident.as_str().to_string(), self.evaluate_type(ty)))
             } else {
                 None
             }
@@ -149,19 +157,23 @@ impl Evaluator {
         match expression {
             Expression::Integer(val, _, _) => ConstValue::cinteger(*val),
             Expression::Float(val, _, _) => ConstValue::cfloat(*val),
-            Expression::Ident(SpannedToken(_, Token::Ident(id))) => {
+            Expression::Ident(tok @ SpannedToken(_, Token::Ident(id))) => {
                 let sym = self.rstate().scope.find_symbol(id);
                 if let Some(sym) = sym {
                     let symv = sym.borrow();
                     match &symv.value {
                         ScopeValue::ConstValue(cv) => cv.clone(),
-                        ScopeValue::Record { ident, members } => ConstValue {
+                        ScopeValue::Record { .. } => ConstValue {
                             ty: Type::Symbol(sym.clone()),
                             kind: ConstValueKind::Empty,
                         },
                         _ => ConstValue::empty(),
                     }
                 } else {
+                    self.add_error(EvaluationError {
+                        kind: EvaluationErrorKind::SymbolNotFound(id.to_string()),
+                        range: tok.get_range(),
+                    });
                     ConstValue::empty()
                 }
             }
@@ -230,7 +242,7 @@ impl Evaluator {
                         let return_values: LinkedHashMap<_, _> = rptypes
                             .into_iter()
                             .map(|(name, ty)| {
-                                let sym = self.rstate().scope.find_symbol(&name);
+                                let sym = self.rstate().scope.find_symbol_local(&name);
                                 let vl = if let Some(sym) = sym {
                                     let sym = sym.borrow();
                                     if let ScopeValue::ConstValue(cv) = &sym.value {
@@ -260,6 +272,60 @@ impl Evaluator {
                         let value = ConstValue::record_instance(rf.clone(), return_values);
 
                         self.wstate().scope.pop_scope();
+
+                        value
+                    }
+                    (
+                        Type::Function {
+                            parameters: ptypes,
+                            ..
+                        },
+                        ConstValueKind::NativeFunction { rf, callback },
+                    ) => {
+                        let arglen = args.len();
+                        let plen = ptypes.len();
+
+                        let has_args: Option<LinkedHashMap<_, _>> = args
+                            .into_iter()
+                            .zip(ptypes.into_iter())
+                            .enumerate()
+                            .map(|(i, (arg, (name, ty)))| {
+                                let arg = arg.try_implicit_cast(&ty).unwrap_or(arg);
+
+                                if arg.ty != ty {
+                                    self.add_error(EvaluationError {
+                                        kind: EvaluationErrorKind::TypeMismatch(
+                                            arg.ty,
+                                            ty,
+                                            TypeHint::Parameter,
+                                        ),
+                                        range: raw_args
+                                            .items
+                                            .iter_items()
+                                            .nth(i)
+                                            .unwrap()
+                                            .get_range(),
+                                    });
+                                    return None;
+                                }
+
+                                Some((name, arg))
+                            })
+                            .collect();
+
+                        if has_args.is_none() {
+                            return ConstValue::empty();
+                        } else if arglen != plen {
+                            self.add_error(EvaluationError {
+                                kind: EvaluationErrorKind::ArgCountMismatch(arglen as _, plen as _),
+                                range: raw_args.get_range(),
+                            });
+                            return ConstValue::empty();
+                        }
+
+                        let return_vals = callback(has_args.as_ref().unwrap());
+
+                        let value = ConstValue::record_instance(rf.clone(), return_vals);
 
                         value
                     }
@@ -354,7 +420,7 @@ impl Evaluator {
                 let left = self.evaluate_expression(raw_left);
                 match (left.kind, raw_right) {
                     (
-                        ConstValueKind::RecordInstance { rf, members },
+                        ConstValueKind::RecordInstance { members, .. },
                         Expression::Ident(SpannedToken(_, Token::Ident(member))),
                     ) => {
                         if let Some(val) = members.get(member) {
@@ -531,10 +597,13 @@ impl Evaluator {
             xlang_core::ast::Type::Float { width, .. } => Type::Float { width: *width },
             xlang_core::ast::Type::Ident(id) => {
                 if let Some(sym) = self.rstate().scope.find_symbol(id.as_str()) {
-                    Type::Symbol(sym)
-                } else {
-                    Type::Empty
+                    return Type::Symbol(sym);
                 }
+                self.add_error(EvaluationError {
+                    kind: EvaluationErrorKind::SymbolNotFound(id.as_str().to_string()),
+                    range: id.get_range(),
+                });
+                Type::Empty
             }
         }
     }

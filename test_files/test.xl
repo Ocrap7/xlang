@@ -1,9 +1,3 @@
+use std
 
-data: (i8 a)
-
-func: (data a, i8 b) -> (i8 s), s = a + b
-
-val: func(data(7), 8)
-
-
-val.s
+print(djij)

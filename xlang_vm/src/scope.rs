@@ -1,12 +1,13 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use linked_hash_map::LinkedHashMap;
 use xlang_core::{
     ast::Expression,
     token::{Operator, SpannedToken, Token},
+    Module,
 };
 use xlang_util::{
-    format::{BoxedGrouper, BoxedGrouperIter, NodeDisplay, TreeDisplay},
+    format::{BoxedGrouper, BoxedGrouperIter, GrouperIter, NodeDisplay, TreeDisplay},
     Rf,
 };
 
@@ -19,7 +20,9 @@ pub enum ScopeValue {
         ident: String,
         members: LinkedHashMap<String, Type>,
     },
-    Module,
+    Use(Vec<String>),
+    Module(Rc<Module>),
+    Root,
 }
 
 impl NodeDisplay for ScopeValue {
@@ -31,7 +34,9 @@ impl NodeDisplay for ScopeValue {
             }) => f.write_str("Function"),
             ScopeValue::ConstValue(_) => f.write_str("Constant Value"),
             ScopeValue::Record { .. } => f.write_str("Record"),
-            ScopeValue::Module => f.write_str("Module"),
+            ScopeValue::Use(_) => f.write_str("Use"),
+            ScopeValue::Module(_) => f.write_str("Module"),
+            ScopeValue::Root => f.write_str("Root"),
         }
     }
 }
@@ -41,7 +46,9 @@ impl TreeDisplay for ScopeValue {
         match self {
             ScopeValue::ConstValue(c) => c.num_children(),
             ScopeValue::Record { .. } => 1,
-            ScopeValue::Module => 0,
+            ScopeValue::Use(s) => s.len(),
+            ScopeValue::Module(_) => 0,
+            ScopeValue::Root => 0,
         }
     }
 
@@ -49,7 +56,9 @@ impl TreeDisplay for ScopeValue {
         match self {
             ScopeValue::ConstValue(c) => c.child_at(index),
             ScopeValue::Record { members, .. } => Some(members),
-            ScopeValue::Module => None,
+            ScopeValue::Use(s) => s.child_at(index),
+            ScopeValue::Module(_) => None,
+            ScopeValue::Root => None,
         }
     }
 }
@@ -57,6 +66,7 @@ impl TreeDisplay for ScopeValue {
 pub struct Scope {
     pub value: ScopeValue,
     pub children: HashMap<String, Rf<Scope>>,
+    pub uses: Vec<Vec<String>>,
 }
 
 impl Scope {
@@ -64,7 +74,24 @@ impl Scope {
         Scope {
             value,
             children: HashMap::new(),
+            uses: Vec::new(),
         }
+    }
+
+    pub fn insert(&mut self, name: &str, val: ScopeValue) -> Rf<Scope> {
+        let rf = Rf::new(Scope::new(val));
+
+        self.children.insert(name.to_string(), rf.clone());
+
+        rf
+    }
+
+    pub fn update(&mut self, name: &str, val: ScopeValue) -> Option<Rf<Scope>> {
+        if let Some(vs)  = self.children.get_mut(name) {
+            vs.borrow_mut().value = val;
+            return Some(vs.clone());
+        }
+        None
     }
 }
 
@@ -76,11 +103,8 @@ impl NodeDisplay for Scope {
 
 impl TreeDisplay for Scope {
     fn num_children(&self) -> usize {
-        if self.children.len() > 0 {
-            2
-        } else {
-            1
-        }
+        1 + (if self.children.len() > 0 { 1 } else { 0 })
+            + (if self.uses.len() > 0 { 1 } else { 0 })
     }
 
     fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<()>> {
@@ -91,13 +115,21 @@ impl TreeDisplay for Scope {
     }
 
     fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
-        Box::new(BoxedGrouperIter(
-            "Children".to_string(),
-            self.children.len(),
-            self.children.iter().map(|f| {
-                Box::new(BoxedGrouper(f.0.clone(), Box::new(f.1.borrow()))) as Box<dyn TreeDisplay>
-            }),
-        ))
+        match _index {
+            1 if self.uses.len() > 0 => Box::new(GrouperIter(
+                "Use".to_string(),
+                self.uses.len(),
+                self.uses.iter().map(|f| f as &'a dyn TreeDisplay),
+            )),
+            _ => Box::new(BoxedGrouperIter(
+                "Children".to_string(),
+                self.children.len(),
+                self.children.iter().map(|f| {
+                    Box::new(BoxedGrouper(f.0.clone(), Box::new(f.1.borrow())))
+                        as Box<dyn TreeDisplay>
+                }),
+            )),
+        }
     }
 }
 
@@ -105,58 +137,47 @@ impl TreeDisplay for Scope {
 pub struct ScopeRef(usize, String);
 
 pub struct ScopeManager {
-    module: Rf<Scope>,
+    root: Rf<Scope>,
+    pub module: Rf<Scope>,
     current_scope: Vec<Rf<Scope>>,
 }
 
 impl<'a> ScopeManager {
-    pub fn new(module: Rf<Scope>) -> ScopeManager {
+    pub fn new(root: Rf<Scope>, module: Rf<Scope>) -> ScopeManager {
+        let name = if let ScopeValue::Module(modu) = &module.borrow().value {
+            modu.name.clone()
+        } else {
+            "".to_string()
+        };
+
+        root.borrow_mut().children.insert(name, module.clone());
+
         let mut vec = Vec::with_capacity(20);
         vec.push(module.clone());
 
         ScopeManager {
+            root,
             module,
             current_scope: vec,
         }
     }
 
+    pub fn add_use(&mut self, path: Vec<String>) {
+        if let Some(sym) = self.current_scope.last() {
+            let mut sym = sym.borrow_mut();
+            sym.uses.push(path)
+        }
+    }
+
     pub fn push_scope(&mut self, rf: Rf<Scope>) {
         self.current_scope.push(rf);
-        // self.scopes.push(Scope {
-        //     symbols: HashMap::new(),
-        // });
     }
 
     pub fn pop_scope(&mut self) -> Rf<Scope> {
         self.current_scope.remove(self.current_scope.len() - 1)
     }
 
-    // pub fn get_symbol_ref(&self, name: &str) -> Option<ScopeRef> {
-    //     let found = self
-    //         .scopes
-    //         .iter()
-    //         .enumerate()
-    //         .rev()
-    //         .find_map(|scope| scope.1.symbols.get(name).map(|sc| (scope.0, name)));
-
-    //     if let Some((ind, st)) = found {
-    //         Some(ScopeRef(ind, st.to_string()))
-    //     } else {
-    //         None
-    //     }
-    // }
-
-    // pub fn get_symbol(&self, scope_ref: &ScopeRef) -> Option<&ScopeValue> {
-    //     if let Some(scp) = self.scopes.get(scope_ref.0) {
-    //         if let Some(sym) = scp.symbols.get(&scope_ref.1) {
-    //             return Some(sym);
-    //         }
-    //     }
-
-    //     None
-    // }
-
-    pub fn fom(
+    fn follow_member_access_leaf(
         &'a mut self,
         left: &Expression,
         right: &Expression,
@@ -171,7 +192,7 @@ impl<'a> ScopeManager {
                 let ScopeValue::ConstValue(
                         ConstValue {
                             ty: Type::RecordInstance { .. },
-                            kind: ConstValueKind::RecordInstance { rf, members }
+                            kind: ConstValueKind::RecordInstance { members, .. }
                         }
                     ) = &mut sym.value else {
                         return false
@@ -203,7 +224,7 @@ impl<'a> ScopeManager {
                 let ScopeValue::ConstValue(
                         ConstValue {
                             ty: Type::RecordInstance { .. },
-                            kind: ConstValueKind::RecordInstance { rf, members }
+                            kind: ConstValueKind::RecordInstance { members, .. }
                         }
                     ) = &mut sym.value else {
                         return false
@@ -222,10 +243,10 @@ impl<'a> ScopeManager {
                 },
                 Expression::Ident(member_right),
             ) => {
-                return self.fom(left, right, |cv| {
+                return self.follow_member_access_leaf(left, right, |cv| {
                     let ConstValue {
                         ty: Type::RecordInstance { .. },
-                        kind: ConstValueKind::RecordInstance { rf, members }
+                        kind: ConstValueKind::RecordInstance { members, .. }
                     } = cv else {
                         return;
                     };
@@ -241,19 +262,65 @@ impl<'a> ScopeManager {
         false
     }
 
-    pub fn find_symbol(&'a self, name: &str) -> Option<Rf<Scope>> {
+    pub fn find_symbol_local(&'a self, name: &str) -> Option<Rf<Scope>> {
+        self.current_scope
+            .last()
+            .and_then(|scope| scope.borrow().children.get(name).cloned())
+    }
+
+    pub fn find_symbol_in_mod(&'a self, name: &str) -> Option<Rf<Scope>> {
         self.current_scope
             .iter()
             .rev()
             .find_map(|scope| scope.borrow().children.get(name).cloned())
     }
 
-    // pub fn find_symbol_mut(&mut self, name: &str) -> Option<&mut ScopeValue> {
-    //     self.current_scope
-    //         .iter_mut()
-    //         .rev()
-    //         .find_map(|scope| scope.borrow_mut().children.get_mut(name))
-    // }
+    pub fn find_symbol(&'a self, name: &str) -> Option<Rf<Scope>> {
+        if let Some(sym) = self.find_symbol_in_mod(name) {
+            return Some(sym);
+        }
+
+        let use_found = self.current_scope.iter().rev().find_map(|scope| {
+            scope.borrow().uses.iter().find_map(|us| {
+                let node = self.resolve_use(us)?;
+                let node = node.borrow();
+                node.children.get(name).cloned()
+            })
+        });
+        if let Some(fnd) = use_found {
+            return Some(fnd);
+        }
+
+        None
+    }
+
+    pub fn resolve_use(&self, use_path: &[String]) -> Option<Rf<Scope>> {
+        if let Some(start) = use_path.first() {
+            if let Some(sym) = self.find_symbol_in_mod(start) {
+                return self.resolve_use_impl(&sym, &use_path[1..]);
+            }
+
+            if let Some(sym) = self.root.borrow().children.get(start) {
+                return self.resolve_use_impl(&sym, &use_path[1..]);
+            }
+        }
+        None
+    }
+
+    pub fn resolve_use_impl(&self, node: &Rf<Scope>, use_path: &[String]) -> Option<Rf<Scope>> {
+        if use_path.len() == 0 {
+            match &node.borrow().value {
+                ScopeValue::Use(u) => return self.resolve_use(&u),
+                _ => (),
+            }
+            return Some(node.clone());
+        } else if let Some(first) = use_path.first() {
+            if let Some(child) = node.borrow().children.get(first) {
+                return self.resolve_use_impl(child, &use_path[1..]);
+            }
+        }
+        None
+    }
 
     pub fn update_value(&mut self, name: &str, value: ScopeValue) -> Option<ScopeValue> {
         if let Some(sym) = self.find_symbol(name) {

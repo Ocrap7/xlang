@@ -22,7 +22,7 @@ pub use pollster;
 use token::{SpannedToken, Token};
 
 impl Module {
-    pub fn parse_str(input: &str) -> (Module, Vec<ParseError>) {
+    pub fn parse_str(input: &str, mod_name: &str) -> (Module, Vec<ParseError>) {
         let mut lexer = Lexer {};
         let tokens = lexer.lex(input);
 
@@ -79,6 +79,7 @@ impl Module {
                     Statement::UseStatement { args, .. } => {
                         let res: Option<Vec<String>> = args
                             .iter_items()
+                            .inspect(|f| println!("{:?}", f))
                             .map(|a| match a {
                                 SpannedToken(_, Token::Ident(i)) => Some(i.clone()),
                                 _ => None,
@@ -100,6 +101,7 @@ impl Module {
 
         (
             Module {
+                name: mod_name.to_string(),
                 content: input.to_string(),
                 stmts: parsed,
                 symbol_tree: mods,
@@ -114,6 +116,7 @@ pub fn set_logger(logger: Box<dyn Log>) -> Result<(), SetLoggerError> {
 }
 
 pub struct Module {
+    pub name: String,
     pub content: String,
     pub stmts: Vec<Statement>,
     pub symbol_tree: Rf<Symbol>,
@@ -176,8 +179,7 @@ impl Module {
         &self,
         iter: impl Iterator<Item = &'a usize>,
     ) -> Option<Rf<Symbol>> {
-        Module::impl_resolve_symbol_chain_indicies(&self.symbol_tree, iter)
-            .ok()
+        Module::impl_resolve_symbol_chain_indicies(&self.symbol_tree, iter).ok()
     }
 
     fn impl_resolve_symbol_chain_indicies<'a>(
@@ -209,8 +211,7 @@ impl Module {
         &self,
         iter: impl Iterator<Item = &'a String>,
     ) -> Option<Rf<Symbol>> {
-        Module::impl_resolve_from_iter_string(&self.symbol_tree, iter)
-            .ok()
+        Module::impl_resolve_from_iter_string(&self.symbol_tree, iter).ok()
     }
 
     pub fn iter_symbol<'a, F: FnMut(&SpannedToken, &Rf<Symbol>)>(
