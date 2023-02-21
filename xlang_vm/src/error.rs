@@ -9,11 +9,13 @@ pub enum ErrorLevel {
     Info,
     Warning,
     Error,
+    Hint,
 }
 
 impl Display for ErrorLevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            ErrorLevel::Hint => f.write_str(&"hint".bright_green().bold().to_string()),
             ErrorLevel::Info => f.write_str(&"info".bright_cyan().bold().to_string()),
             ErrorLevel::Warning => f.write_str(&"warning".bright_yellow().bold().to_string()),
             ErrorLevel::Error => f.write_str(&"error".bright_red().bold().to_string()),

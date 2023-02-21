@@ -7,6 +7,9 @@ edition = "2021"
 
 [dependencies]
 xlang_core = { path = "../../xlang_core" }
+xlang_util = { path = "../../xlang_util" }
+xlang_vm = { path = "../../xlang_vm" }
+
 tokio = { version = "1.24.2", features = ["full"] }
 serde = "*"
 serde_json = "*"

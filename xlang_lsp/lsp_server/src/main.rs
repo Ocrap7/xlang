@@ -11,6 +11,13 @@ use tower_lsp::{Client, LspService, Server};
 use xlang_core::ast::{ArgList, AstNode, Expression, ParamaterList, Statement, Type};
 use xlang_core::token::{Operator, Span, SpannedToken, Token};
 use xlang_core::Module;
+use xlang_util::format::TreeDisplay;
+use xlang_util::Rf;
+use xlang_vm::error::ErrorLevel;
+use xlang_vm::evaluator::Evaluator;
+use xlang_vm::pass::CodePass;
+use xlang_vm::scope::{Scope, ScopeManager, ScopeValue};
+use xlang_vm::stdlib::{fill_module, std_module};
 
 struct ReadDirectoryRequest {}
 
@@ -89,8 +96,10 @@ struct Backend {
     element_names: HashSet<String>,
     style_enum: HashMap<String, CompletionType>,
 
-    documents: RwLock<HashMap<Url, Module>>,
+    documents: RwLock<HashMap<Url, (Arc<Module>, ScopeManager)>>,
     client: Arc<Client>,
+
+    symbol_tree: Rf<Scope>,
 }
 
 fn get_stype_index(ty: SemanticTokenType) -> u32 {
@@ -109,6 +118,7 @@ impl Backend {
         &self,
         value: &Expression,
         module: &Module,
+        scope: &ScopeManager,
         scope_index: &mut Vec<usize>,
         builder: &mut SemanticTokenBuilder,
     ) {
@@ -164,7 +174,7 @@ impl Backend {
 
                 if let Some(body) = body {
                     // for item in body.iter_items() {
-                    self.recurse(module, body, scope_index, builder);
+                    self.recurse(module, scope, body, scope_index, builder);
                     // }
                 }
             }
@@ -180,22 +190,22 @@ impl Backend {
                         );
                     }
                     _ => {
-                        self.recurse_expression(expr, module, scope_index, builder);
+                        self.recurse_expression(expr, module, scope, scope_index, builder);
                     }
                 }
 
-                self.recurse_args(module, args, scope_index, builder);
+                self.recurse_args(module, scope, args, scope_index, builder);
             }
             Expression::Tuple(_) => (),
-            Expression::Array { values, .. } => values
-                .iter_items()
-                .for_each(|item| self.recurse_expression(item, module, scope_index, builder)),
+            Expression::Array { values, .. } => values.iter_items().for_each(|item| {
+                self.recurse_expression(item, module, scope, scope_index, builder)
+            }),
             Expression::BinaryExpression { left, right, .. } => {
                 if let Some(left) = left {
-                    self.recurse_expression(left, module, scope_index, builder);
+                    self.recurse_expression(left, module, scope, scope_index, builder);
                 }
                 if let Some(right) = right {
-                    self.recurse_expression(right, module, scope_index, builder);
+                    self.recurse_expression(right, module, scope, scope_index, builder);
                 }
             }
             Expression::Record { parameters } => {
@@ -208,12 +218,13 @@ impl Backend {
     fn recurse_args(
         &self,
         module: &Module,
+        scope: &ScopeManager,
         args: &ArgList,
         scope_index: &mut Vec<usize>,
         builder: &mut SemanticTokenBuilder,
     ) {
         for item in args.iter_items() {
-            self.recurse_expression(item, module, scope_index, builder)
+            self.recurse_expression(item, module, scope, scope_index, builder)
         }
     }
 
@@ -283,6 +294,7 @@ impl Backend {
     fn recurse(
         &self,
         module: &Module,
+        scope: &ScopeManager,
         stmt: &Statement,
         scope_index: &mut Vec<usize>,
         builder: &mut SemanticTokenBuilder,
@@ -290,7 +302,7 @@ impl Backend {
         match stmt {
             Statement::List(list) => {
                 for l in list.iter_items() {
-                    self.recurse(module, l, scope_index, builder);
+                    self.recurse(module, scope, l, scope_index, builder);
                 }
             }
             Statement::Decleration { ident, expr, .. } => {
@@ -307,10 +319,12 @@ impl Backend {
                     0,
                 );
                 if let Some(expr) = expr {
-                    self.recurse_expression(expr, module, scope_index, builder);
+                    self.recurse_expression(expr, module, scope, scope_index, builder);
                 }
             }
-            Statement::Expression(e) => self.recurse_expression(e, module, scope_index, builder),
+            Statement::Expression(e) => {
+                self.recurse_expression(e, module, scope, scope_index, builder)
+            }
             Statement::UseStatement { token, args } => {
                 if let Some(token) = token {
                     builder.push(
@@ -321,18 +335,28 @@ impl Backend {
                         0,
                     )
                 }
-
-                module.iter_symbol(args.iter_items(), |name, val| match val.borrow().kind {
-                    _ => {
-                        builder.push(
-                            name.span().line_num,
-                            name.span().position,
-                            name.span().length,
-                            get_stype_index_from_str("namespace"),
-                            0,
-                        );
-                    }
+                
+                scope.iter_use(args.iter_items().map(|f| (f.as_str(), f)), |sym, ud| {
+                    builder.push(
+                        ud.span().line_num,
+                        ud.span().position,
+                        ud.span().length,
+                        get_stype_index_from_str("namespace"),
+                        0,
+                    );
                 });
+
+                // module.iter_symbol(args.iter_items(), |name, val| match val.borrow().kind {
+                //     _ => {
+                //         builder.push(
+                //             name.span().line_num,
+                //             name.span().position,
+                //             name.span().length,
+                //             get_stype_index_from_str("namespace"),
+                //             0,
+                //         );
+                //     }
+                // });
             }
         }
     }
@@ -356,12 +380,12 @@ impl Backend {
                 if let Some((_, Some(SpannedToken(_, Token::Operator(Operator::Dot))))) =
                     args.iter().last()
                 {
-                    if let Some(sym) = module.resolve_symbol_chain(args.iter_items()) {
-                        println!("Use {}", sym.borrow().name);
-                        let comp = Vec::new();
+                    // if let Some(sym) = module.resolve_symbol_chain(args.iter_items()) {
+                    //     println!("Use {}", sym.borrow().name);
+                    //     let comp = Vec::new();
 
-                        return Some(comp);
-                    }
+                    //     return Some(comp);
+                    // }
                 }
             }
             _ => (),
@@ -427,9 +451,9 @@ impl LanguageServer for Backend {
             let mut builder = SemanticTokenBuilder::default();
             let mut scope = Vec::with_capacity(50);
             scope.push(0);
-            for (i, tok) in mods.stmts.iter().enumerate() {
+            for (i, tok) in mods.0.stmts.iter().enumerate() {
                 scope[0] = i;
-                self.recurse(mods, tok, &mut scope, &mut builder);
+                self.recurse(&mods.0, &mods.1, tok, &mut scope, &mut builder);
             }
             builder.build()
         };
@@ -459,12 +483,13 @@ impl LanguageServer for Backend {
             };
 
             let items = mods
+                .0
                 .stmts
                 .iter()
-                .find_map(|f| self.bsearch_statement(mods, f, &sp));
+                .find_map(|f| self.bsearch_statement(&mods.0, f, &sp));
 
             if items.is_none() {
-                if !mods.stmts.iter().any(|f| f.get_range().contains(&sp)) {
+                if !mods.0.stmts.iter().any(|f| f.get_range().contains(&sp)) {
                     Some(
                         self.element_names
                             .iter()
@@ -511,7 +536,35 @@ impl LanguageServer for Backend {
             self.client.log_message(MessageType::ERROR, err).await;
         }
 
-        (*(self.documents.write().unwrap())).insert(params.text_document.uri, out.0);
+        let module = Arc::new(out.0);
+
+        let code_pass = CodePass::new(self.symbol_tree.clone(), module.clone());
+        let code_pass_state = code_pass.run();
+        println!("MMKLSDAJFLAKDSJFoij {}", self.symbol_tree.format());
+
+        let diags: Vec<_> = code_pass_state
+            .errors
+            .iter()
+            .map(|err| Diagnostic {
+                range: to_rng(&err.range),
+                severity: match err.kind.get_level() {
+                    ErrorLevel::Error => Some(DiagnosticSeverity::ERROR),
+                    ErrorLevel::Warning => Some(DiagnosticSeverity::WARNING),
+                    ErrorLevel::Info => Some(DiagnosticSeverity::INFORMATION),
+                    ErrorLevel::Hint => Some(DiagnosticSeverity::HINT),
+                },
+                message: err.kind.to_string(),
+                ..Default::default()
+            })
+            .collect();
+        println!("diagns: {}", diags.len());
+
+        self.client
+            .publish_diagnostics(params.text_document.uri.clone(), diags, None)
+            .await;
+
+        (*(self.documents.write().unwrap()))
+            .insert(params.text_document.uri, (module, code_pass_state.scope));
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -528,7 +581,34 @@ impl LanguageServer for Backend {
                 self.client.log_message(MessageType::ERROR, err).await;
             }
 
-            (*(self.documents.write().unwrap())).insert(doc.uri.clone(), out.0);
+            let module = Arc::new(out.0);
+
+            let code_pass = CodePass::new(self.symbol_tree.clone(), module.clone());
+            let code_pass_state = code_pass.run();
+
+            let diags: Vec<_> = code_pass_state
+                .errors
+                .iter()
+                .map(|err| Diagnostic {
+                    range: to_rng(&err.range),
+                    severity: match err.kind.get_level() {
+                        ErrorLevel::Error => Some(DiagnosticSeverity::ERROR),
+                        ErrorLevel::Warning => Some(DiagnosticSeverity::WARNING),
+                        ErrorLevel::Info => Some(DiagnosticSeverity::INFORMATION),
+                        ErrorLevel::Hint => Some(DiagnosticSeverity::HINT),
+                    },
+                    message: err.kind.to_string(),
+                    ..Default::default()
+                })
+                .collect();
+
+        println!("diagns: {}", diags.len());
+            self.client
+                .publish_diagnostics(doc.uri.clone(), diags, None)
+                .await;
+
+            (*(self.documents.write().unwrap()))
+                .insert(doc.uri.clone(), (module, code_pass_state.scope));
 
             self.client.semantic_tokens_refresh().await.unwrap();
         }
@@ -571,6 +651,34 @@ async fn main() {
     let (service, socket) = LspService::new(|client| {
         let client = Arc::new(client);
 
+        let symbol_tree = Rf::new(Scope::new(ScopeValue::Root));
+        {
+            // let std_module = std_module();
+
+            // let code_pass = CodePass::new(symbol_tree.clone(), std_module.clone());
+            // let code_pass_state = code_pass.run();
+            // let std_mod_scope = code_pass_state.scope.module.clone();
+
+            // let evaluator = Evaluator::new(std_module.clone(), code_pass_state.scope);
+            // let values = evaluator.evaluate();
+
+            // for error in &code_pass_state.errors {
+            //     error.print("std.xl", &lines);
+            // }
+
+            // for error in &evaluator.state.read().unwrap().errors {
+            //     error.print("std.xl", &lines);
+            // }
+
+            // for value in values {
+            //     println!("{value}");
+            // }
+            // let std_mod_scope = Rf::new(Scope::new(ScopeValue::Root));
+            let std_mod_scope = symbol_tree.borrow_mut().insert("std", ScopeValue::Root);
+
+            fill_module(std_mod_scope);
+        }
+
         Backend {
             element_names: HashSet::from_iter(["style".into(), "view".into(), "setup".into()]),
             style_enum: HashMap::from([
@@ -598,6 +706,7 @@ async fn main() {
             ]),
             documents: RwLock::new(HashMap::new()),
             client,
+            symbol_tree,
         }
     });
     Server::new(read, write, socket).serve(service).await;

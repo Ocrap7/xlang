@@ -276,6 +276,8 @@ dependencies = [
  "tokio",
  "tower-lsp",
  "xlang_core",
+ "xlang_util",
+ "xlang_vm",
 ]
 
 [[package]]
@@ -834,6 +836,7 @@ name = "xlang_compiler"
 version = "0.1.0"
 dependencies = [
  "xlang_core",
+ "xlang_vm",
 ]
 
 [[package]]

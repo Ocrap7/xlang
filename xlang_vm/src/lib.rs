@@ -1,4 +1,4 @@
-use std::{fs::File, io::Read, rc::Rc};
+use std::{fs::File, io::Read, rc::Rc, path::Path, sync::Arc};
 
 use evaluator::Evaluator;
 use xlang_core::Module;
@@ -10,21 +10,20 @@ use crate::{
     stdlib::{std_module, fill_module},
 };
 
-mod const_value;
-mod error;
-mod evaluator;
-mod pass;
-mod scope;
-mod stdlib;
+pub mod const_value;
+pub mod error;
+pub mod evaluator;
+pub mod pass;
+pub mod scope;
+pub mod stdlib;
 
 #[cfg(windows)]
 const LINE_ENDING: &'static str = "\r\n";
 #[cfg(not(windows))]
 const LINE_ENDING: &'static str = "\n";
 
-fn main() {
-    let file_path = "test_files/test.xl";
-    let mut file = File::open(file_path).unwrap();
+pub fn run_file<P: AsRef<Path>>(path: P) {
+    let mut file = File::open(path.as_ref()).unwrap();
 
     let mut input = String::new();
     file.read_to_string(&mut input).unwrap();
@@ -33,7 +32,7 @@ fn main() {
     for error in errors {
         println!("{error}")
     }
-    let module = Rc::new(module);
+    let module = Arc::new(module);
 
     let lines: Vec<&str> = input.split(LINE_ENDING).collect();
 
@@ -50,11 +49,11 @@ fn main() {
         let values = evaluator.evaluate();
 
         for error in &code_pass_state.errors {
-            error.print(file_path, &lines);
+            error.print("std.xl", &lines);
         }
 
         for error in &evaluator.state.read().unwrap().errors {
-            error.print(file_path, &lines);
+            error.print("std.xl", &lines);
         }
 
         for value in values {
@@ -71,11 +70,11 @@ fn main() {
     let values = evaluator.evaluate();
 
     for error in &code_pass_state.errors {
-        error.print(file_path, &lines);
+        error.print(path.as_ref().as_os_str().to_str().unwrap(), &lines);
     }
 
     for error in &evaluator.state.read().unwrap().errors {
-        error.print(file_path, &lines);
+        error.print(path.as_ref().as_os_str().to_str().unwrap(), &lines);
     }
 
     for value in values {

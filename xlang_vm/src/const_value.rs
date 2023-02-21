@@ -1,4 +1,4 @@
-use std::{fmt::{Debug, Display}, rc::Rc};
+use std::{fmt::{Debug, Display}, rc::Rc, sync::Arc};
 
 use linked_hash_map::LinkedHashMap;
 use xlang_core::ast::Statement;
@@ -265,7 +265,7 @@ pub enum ConstValueKind {
     NativeFunction {
         rf: Rf<Scope>,
         callback:
-            Rc<dyn Fn(&LinkedHashMap<String, ConstValue>) -> LinkedHashMap<String, ConstValue>>,
+            Arc<dyn Fn(&LinkedHashMap<String, ConstValue>) -> LinkedHashMap<String, ConstValue> + Sync + Send>,
     },
     Tuple(Vec<ConstValue>),
     RecordInstance {

@@ -1,6 +1,6 @@
 use std::{
     rc::Rc,
-    sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
+    sync::{RwLock, RwLockReadGuard, RwLockWriteGuard, Arc},
 };
 
 use linked_hash_map::LinkedHashMap;
@@ -23,12 +23,12 @@ pub struct EvaluatorState {
 }
 
 pub struct Evaluator {
-    module: Rc<Module>,
+    module: Arc<Module>,
     pub state: RwLock<EvaluatorState>,
 }
 
 impl Evaluator {
-    pub fn new(module: Rc<Module>, scope_manager: ScopeManager) -> Evaluator {
+    pub fn new(module: Arc<Module>, scope_manager: ScopeManager) -> Evaluator {
         Evaluator {
             module,
             state: RwLock::new(EvaluatorState {

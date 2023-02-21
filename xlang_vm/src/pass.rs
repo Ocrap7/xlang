@@ -1,6 +1,6 @@
 use std::{
     rc::Rc,
-    sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
+    sync::{RwLock, RwLockReadGuard, RwLockWriteGuard, Arc},
 };
 
 use linked_hash_map::LinkedHashMap;
@@ -28,13 +28,13 @@ pub struct CodePassState {
 }
 
 pub struct CodePass {
-    module: Rc<Module>,
+    module: Arc<Module>,
     state: RwLock<CodePassState>,
     pass: PassType,
 }
 
 impl CodePass {
-    pub fn new(root: Rf<Scope>, module: Rc<Module>) -> CodePass {
+    pub fn new(root: Rf<Scope>, module: Arc<Module>) -> CodePass {
         let scope = Rf::new(Scope::new(ScopeValue::Module(module.clone())));
         CodePass {
             module,

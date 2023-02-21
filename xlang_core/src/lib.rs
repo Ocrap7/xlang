@@ -34,77 +34,75 @@ impl Module {
 
         let er = parser.get_errors().clone();
 
-        let mods = Symbol::new_root();
-        let md = ModuleDescender::new(mods.clone())
-            .with_on_parameters(|params, ud| {
-                for param in params.iter_items() {
-                    if let (Some(SpannedToken(_, Token::Ident(ident))), Some(ty)) =
-                        (&param.name, &param.ty)
-                    {
-                        Symbol::insert(&ud, ident, SymbolKind::Parameter { ty: ty.clone() });
-                    }
-                }
-                ud
-            })
-            .with_on_return_parameters(|params, ud| {
-                for param in params.iter_items() {
-                    if let (Some(SpannedToken(_, Token::Ident(ident))), Some(ty)) =
-                        (&param.name, &param.ty)
-                    {
-                        Symbol::insert(&ud, ident, SymbolKind::ReturnParameter { ty: ty.clone() });
-                    }
-                }
-                ud
-            })
-            .with_on_statement(|st, ud| {
-                match st {
-                    Statement::Decleration {
-                        ident: SpannedToken(_, Token::Ident(id)),
-                        expr,
-                        ..
-                    } => {
-                        let cd = match expr {
-                            Some(Expression::Record { .. }) => {
-                                Symbol::insert(&ud, id, SymbolKind::Record)
-                            }
-                            Some(Expression::Function { .. }) => {
-                                Symbol::insert(&ud, id, SymbolKind::Function {})
-                            }
-                            // _ => Symbol::insert(&ud, id, SymbolKind::Variable {}),
-                            _ => ud.clone(),
-                        };
+        // let mods = Symbol::new_root();
+        // let md = ModuleDescender::new(mods.clone())
+        //     .with_on_parameters(|params, ud| {
+        //         for param in params.iter_items() {
+        //             if let (Some(SpannedToken(_, Token::Ident(ident))), Some(ty)) =
+        //                 (&param.name, &param.ty)
+        //             {
+        //                 Symbol::insert(&ud, ident, SymbolKind::Parameter { ty: ty.clone() });
+        //             }
+        //         }
+        //         ud
+        //     })
+        //     .with_on_return_parameters(|params, ud| {
+        //         for param in params.iter_items() {
+        //             if let (Some(SpannedToken(_, Token::Ident(ident))), Some(ty)) =
+        //                 (&param.name, &param.ty)
+        //             {
+        //                 Symbol::insert(&ud, ident, SymbolKind::ReturnParameter { ty: ty.clone() });
+        //             }
+        //         }
+        //         ud
+        //     })
+        //     .with_on_statement(|st, ud| {
+        //         match st {
+        //             Statement::Decleration {
+        //                 ident: SpannedToken(_, Token::Ident(id)),
+        //                 expr,
+        //                 ..
+        //             } => {
+        //                 let cd = match expr {
+        //                     Some(Expression::Record { .. }) => {
+        //                         Symbol::insert(&ud, id, SymbolKind::Record)
+        //                     }
+        //                     Some(Expression::Function { .. }) => {
+        //                         Symbol::insert(&ud, id, SymbolKind::Function {})
+        //                     }
+        //                     // _ => Symbol::insert(&ud, id, SymbolKind::Variable {}),
+        //                     _ => ud.clone(),
+        //                 };
 
-                        return (cd, ud);
-                    }
-                    Statement::UseStatement { args, .. } => {
-                        let res: Option<Vec<String>> = args
-                            .iter_items()
-                            .inspect(|f| println!("{:?}", f))
-                            .map(|a| match a {
-                                SpannedToken(_, Token::Ident(i)) => Some(i.clone()),
-                                _ => None,
-                            })
-                            .collect();
-                        if let Some(res) = res {
-                            let cd = Symbol::insert(&ud, "use", SymbolKind::Use(res));
-                            return (cd, ud);
-                        }
-                    }
-                    _ => (),
-                }
-                (ud.clone(), ud)
-            });
+        //                 return (cd, ud);
+        //             }
+        //             Statement::UseStatement { args, .. } => {
+        //                 let res: Option<Vec<String>> = args
+        //                     .iter_items()
+        //                     .inspect(|f| println!("{:?}", f))
+        //                     .map(|a| match a {
+        //                         SpannedToken(_, Token::Ident(i)) => Some(i.clone()),
+        //                         _ => None,
+        //                     })
+        //                     .collect();
+        //                 if let Some(res) = res {
+        //                     let cd = Symbol::insert(&ud, "use", SymbolKind::Use(res));
+        //                     return (cd, ud);
+        //                 }
+        //             }
+        //             _ => (),
+        //         }
+        //         (ud.clone(), ud)
+        //     });
 
-        md.descend(&parsed);
+        // md.descend(&parsed);
 
-        println!("Mod: {}", mods.format());
 
         (
             Module {
                 name: mod_name.to_string(),
                 content: input.to_string(),
                 stmts: parsed,
-                symbol_tree: mods,
             },
             er,
         )
@@ -119,7 +117,6 @@ pub struct Module {
     pub name: String,
     pub content: String,
     pub stmts: Vec<Statement>,
-    pub symbol_tree: Rf<Symbol>,
 }
 
 impl Module {
@@ -130,146 +127,146 @@ impl Module {
             .collect()
     }
 
-    pub fn resolve_symbol_in_scope<'a>(
-        &self,
-        symbol: &str,
-        scope: impl Iterator<Item = &'a String>,
-    ) -> Option<Rf<Symbol>> {
-        let Some(sym) = self.resolve_symbol_chain_string(scope) else {
-            return None
-        };
-        self.impl_resolve_symbol_in_scope(symbol, &sym)
-    }
+    // pub fn resolve_symbol_in_scope<'a>(
+    //     &self,
+    //     symbol: &str,
+    //     scope: impl Iterator<Item = &'a String>,
+    // ) -> Option<Rf<Symbol>> {
+    //     let Some(sym) = self.resolve_symbol_chain_string(scope) else {
+    //         return None
+    //     };
+    //     self.impl_resolve_symbol_in_scope(symbol, &sym)
+    // }
 
-    pub fn impl_resolve_symbol_in_scope(
-        &self,
-        symbol: &str,
-        node: &Rf<Symbol>,
-    ) -> Option<Rf<Symbol>> {
-        let nodev = node.borrow();
-        if let SymbolKind::Use(_) = &nodev.kind {
-            return None;
-        }
-        if let Some(child) = nodev.children.get(symbol) {
-            Some(child.clone())
-        } else {
-            for (_, child) in &nodev.children {
-                let child = child.borrow();
-                if let SymbolKind::Use(scp) = &child.kind {
-                    return self.resolve_symbol_in_scope(symbol, scp.iter());
-                }
-            }
-            None
-        }
-    }
+    // pub fn impl_resolve_symbol_in_scope(
+    //     &self,
+    //     symbol: &str,
+    //     node: &Rf<Symbol>,
+    // ) -> Option<Rf<Symbol>> {
+    //     let nodev = node.borrow();
+    //     if let SymbolKind::Use(_) = &nodev.kind {
+    //         return None;
+    //     }
+    //     if let Some(child) = nodev.children.get(symbol) {
+    //         Some(child.clone())
+    //     } else {
+    //         for (_, child) in &nodev.children {
+    //             let child = child.borrow();
+    //             if let SymbolKind::Use(scp) = &child.kind {
+    //                 return self.resolve_symbol_in_scope(symbol, scp.iter());
+    //             }
+    //         }
+    //         None
+    //     }
+    // }
 
-    pub fn resolve_symbol(&self, node: &Rf<Symbol>, symbol_name: &str) -> Option<Rf<Symbol>> {
-        if let Some(node) = self.impl_resolve_symbol_in_scope(symbol_name, node) {
-            Some(node)
-        } else {
-            let Some(parent) = ({ &node.borrow().parent }) else {
-                    return None
-                };
+    // pub fn resolve_symbol(&self, node: &Rf<Symbol>, symbol_name: &str) -> Option<Rf<Symbol>> {
+    //     if let Some(node) = self.impl_resolve_symbol_in_scope(symbol_name, node) {
+    //         Some(node)
+    //     } else {
+    //         let Some(parent) = ({ &node.borrow().parent }) else {
+    //                 return None
+    //             };
 
-            self.resolve_symbol(parent, symbol_name)
-        }
-    }
+    //         self.resolve_symbol(parent, symbol_name)
+    //     }
+    // }
 
-    pub fn resolve_symbol_chain_indicies<'a>(
-        &self,
-        iter: impl Iterator<Item = &'a usize>,
-    ) -> Option<Rf<Symbol>> {
-        Module::impl_resolve_symbol_chain_indicies(&self.symbol_tree, iter).ok()
-    }
+    // pub fn resolve_symbol_chain_indicies<'a>(
+    //     &self,
+    //     iter: impl Iterator<Item = &'a usize>,
+    // ) -> Option<Rf<Symbol>> {
+    //     Module::impl_resolve_symbol_chain_indicies(&self.symbol_tree, iter).ok()
+    // }
 
-    fn impl_resolve_symbol_chain_indicies<'a>(
-        last: &Rf<Symbol>,
-        mut iter: impl Iterator<Item = &'a usize>,
-    ) -> Result<Rf<Symbol>, bool> {
-        if let Some(index) = iter.next() {
-            if let Some(s) = last.borrow().children.values().nth(*index) {
-                match Module::impl_resolve_symbol_chain_indicies(s, iter) {
-                    Ok(n) => return Ok(n),
-                    Err(true) => return Ok(s.clone()),
-                    _ => (),
-                }
-            }
-        } else {
-            return Err(true);
-        }
-        Err(false)
-    }
+    // fn impl_resolve_symbol_chain_indicies<'a>(
+    //     last: &Rf<Symbol>,
+    //     mut iter: impl Iterator<Item = &'a usize>,
+    // ) -> Result<Rf<Symbol>, bool> {
+    //     if let Some(index) = iter.next() {
+    //         if let Some(s) = last.borrow().children.values().nth(*index) {
+    //             match Module::impl_resolve_symbol_chain_indicies(s, iter) {
+    //                 Ok(n) => return Ok(n),
+    //                 Err(true) => return Ok(s.clone()),
+    //                 _ => (),
+    //             }
+    //         }
+    //     } else {
+    //         return Err(true);
+    //     }
+    //     Err(false)
+    // }
 
-    pub fn resolve_symbol_chain<'a>(
-        &self,
-        iter: impl Iterator<Item = &'a SpannedToken>,
-    ) -> Option<Rf<Symbol>> {
-        Module::impl_resolve_from_iter(&self.symbol_tree, iter).ok()
-    }
+    // pub fn resolve_symbol_chain<'a>(
+    //     &self,
+    //     iter: impl Iterator<Item = &'a SpannedToken>,
+    // ) -> Option<Rf<Symbol>> {
+    //     Module::impl_resolve_from_iter(&self.symbol_tree, iter).ok()
+    // }
 
-    pub fn resolve_symbol_chain_string<'a>(
-        &self,
-        iter: impl Iterator<Item = &'a String>,
-    ) -> Option<Rf<Symbol>> {
-        Module::impl_resolve_from_iter_string(&self.symbol_tree, iter).ok()
-    }
+    // pub fn resolve_symbol_chain_string<'a>(
+    //     &self,
+    //     iter: impl Iterator<Item = &'a String>,
+    // ) -> Option<Rf<Symbol>> {
+    //     Module::impl_resolve_from_iter_string(&self.symbol_tree, iter).ok()
+    // }
 
-    pub fn iter_symbol<'a, F: FnMut(&SpannedToken, &Rf<Symbol>)>(
-        &self,
-        iter: impl Iterator<Item = &'a SpannedToken>,
-        f: F,
-    ) {
-        Module::impl_iter_symbol(&self.symbol_tree, iter, f);
-    }
+    // pub fn iter_symbol<'a, F: FnMut(&SpannedToken, &Rf<Symbol>)>(
+    //     &self,
+    //     iter: impl Iterator<Item = &'a SpannedToken>,
+    //     f: F,
+    // ) {
+    //     Module::impl_iter_symbol(&self.symbol_tree, iter, f);
+    // }
 
-    fn impl_iter_symbol<'a, F: FnMut(&SpannedToken, &Rf<Symbol>)>(
-        last: &Rf<Symbol>,
-        mut iter: impl Iterator<Item = &'a SpannedToken>,
-        mut f: F,
-    ) {
-        if let Some(tok @ SpannedToken(_, Token::Ident(i))) = iter.next() {
-            if let Some(s) = last.borrow().children.get(i) {
-                f(tok, s);
-                Module::impl_iter_symbol(s, iter, f);
-            }
-        }
-    }
+    // fn impl_iter_symbol<'a, F: FnMut(&SpannedToken, &Rf<Symbol>)>(
+    //     last: &Rf<Symbol>,
+    //     mut iter: impl Iterator<Item = &'a SpannedToken>,
+    //     mut f: F,
+    // ) {
+    //     if let Some(tok @ SpannedToken(_, Token::Ident(i))) = iter.next() {
+    //         if let Some(s) = last.borrow().children.get(i) {
+    //             f(tok, s);
+    //             Module::impl_iter_symbol(s, iter, f);
+    //         }
+    //     }
+    // }
 
-    fn impl_resolve_from_iter<'a>(
-        last: &Rf<Symbol>,
-        mut iter: impl Iterator<Item = &'a SpannedToken>,
-    ) -> Result<Rf<Symbol>, bool> {
-        if let Some(SpannedToken(_, Token::Ident(i))) = iter.next() {
-            if let Some(s) = last.borrow().children.get(i) {
-                match Module::impl_resolve_from_iter(s, iter) {
-                    Ok(n) => return Ok(n),
-                    Err(true) => return Ok(s.clone()),
-                    _ => (),
-                }
-            }
-        } else {
-            return Err(true);
-        }
-        Err(false)
-    }
+    // fn impl_resolve_from_iter<'a>(
+    //     last: &Rf<Symbol>,
+    //     mut iter: impl Iterator<Item = &'a SpannedToken>,
+    // ) -> Result<Rf<Symbol>, bool> {
+    //     if let Some(SpannedToken(_, Token::Ident(i))) = iter.next() {
+    //         if let Some(s) = last.borrow().children.get(i) {
+    //             match Module::impl_resolve_from_iter(s, iter) {
+    //                 Ok(n) => return Ok(n),
+    //                 Err(true) => return Ok(s.clone()),
+    //                 _ => (),
+    //             }
+    //         }
+    //     } else {
+    //         return Err(true);
+    //     }
+    //     Err(false)
+    // }
 
-    fn impl_resolve_from_iter_string<'a>(
-        last: &Rf<Symbol>,
-        mut iter: impl Iterator<Item = &'a String>,
-    ) -> Result<Rf<Symbol>, bool> {
-        if let Some(i) = iter.next() {
-            if let Some(s) = last.borrow().children.get(i) {
-                match Module::impl_resolve_from_iter_string(s, iter) {
-                    Ok(n) => return Ok(n),
-                    Err(true) => return Ok(s.clone()),
-                    _ => (),
-                }
-            }
-        } else {
-            return Err(true);
-        }
-        Err(false)
-    }
+    // fn impl_resolve_from_iter_string<'a>(
+    //     last: &Rf<Symbol>,
+    //     mut iter: impl Iterator<Item = &'a String>,
+    // ) -> Result<Rf<Symbol>, bool> {
+    //     if let Some(i) = iter.next() {
+    //         if let Some(s) = last.borrow().children.get(i) {
+    //             match Module::impl_resolve_from_iter_string(s, iter) {
+    //                 Ok(n) => return Ok(n),
+    //                 Err(true) => return Ok(s.clone()),
+    //                 _ => (),
+    //             }
+    //         }
+    //     } else {
+    //         return Err(true);
+    //     }
+    //     Err(false)
+    // }
 }
 
 pub enum SymbolKind {

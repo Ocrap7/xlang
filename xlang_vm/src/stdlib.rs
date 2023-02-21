@@ -1,4 +1,4 @@
-use std::{fs::File, io::Read, rc::Rc};
+use std::{fs::File, io::Read, rc::Rc, sync::Arc};
 
 use linked_hash_map::LinkedHashMap;
 use xlang_core::Module;
@@ -9,7 +9,7 @@ use crate::{
     scope::{Scope, ScopeValue},
 };
 
-pub fn std_module() -> Rc<Module> {
+pub fn std_module() -> Arc<Module> {
     let file_path = "test_files/std.xl";
     let mut file = File::open(file_path).unwrap();
 
@@ -21,7 +21,7 @@ pub fn std_module() -> Rc<Module> {
         println!("{error}")
     }
 
-    Rc::new(module)
+    Arc::new(module)
 }
 
 pub fn fill_module(module: Rf<Scope>) {
@@ -34,7 +34,7 @@ pub fn fill_module(module: Rf<Scope>) {
         "print",
         [("name".to_string(), Type::Empty)].into_iter(),
         [].into_iter(),
-        Rc::new(|params| {
+        Arc::new(|params| {
             println!("{}", params.get("name").unwrap());
             LinkedHashMap::new()
         }),
@@ -46,7 +46,7 @@ fn create_func<P: Iterator<Item = (String, Type)>, R: Iterator<Item = (String, T
     name: &str,
     p: P,
     r: R,
-    func: Rc<dyn Fn(&LinkedHashMap<String, ConstValue>) -> LinkedHashMap<String, ConstValue>>,
+    func: Arc<dyn Fn(&LinkedHashMap<String, ConstValue>) -> LinkedHashMap<String, ConstValue> + Sync + Send>,
 ) -> Rf<Scope> {
     // let rf = Rf::new(func as (dyn (FnMut(LinkedHashMap<String, ConstValue>) -> LinkedHashMap<String, ConstValue>) + 'static));
 

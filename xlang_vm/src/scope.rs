@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 use linked_hash_map::LinkedHashMap;
 use xlang_core::{
@@ -21,7 +21,7 @@ pub enum ScopeValue {
         members: LinkedHashMap<String, Type>,
     },
     Use(Vec<String>),
-    Module(Rc<Module>),
+    Module(Arc<Module>),
     Root,
 }
 
@@ -87,7 +87,7 @@ impl Scope {
     }
 
     pub fn update(&mut self, name: &str, val: ScopeValue) -> Option<Rf<Scope>> {
-        if let Some(vs)  = self.children.get_mut(name) {
+        if let Some(vs) = self.children.get_mut(name) {
             vs.borrow_mut().value = val;
             return Some(vs.clone());
         }
@@ -282,7 +282,7 @@ impl<'a> ScopeManager {
 
         let use_found = self.current_scope.iter().rev().find_map(|scope| {
             scope.borrow().uses.iter().find_map(|us| {
-                let node = self.resolve_use(us)?;
+                let node = self.resolve_use(us, |_| {})?;
                 let node = node.borrow();
                 node.children.get(name).cloned()
             })
@@ -294,31 +294,80 @@ impl<'a> ScopeManager {
         None
     }
 
-    pub fn resolve_use(&self, use_path: &[String]) -> Option<Rf<Scope>> {
+    pub fn resolve_use(&self, use_path: &[String], cb: impl Fn(&Rf<Scope>)) -> Option<Rf<Scope>> {
         if let Some(start) = use_path.first() {
             if let Some(sym) = self.find_symbol_in_mod(start) {
-                return self.resolve_use_impl(&sym, &use_path[1..]);
+                cb(&sym);
+                return self.resolve_use_impl(&sym, &use_path[1..], cb);
             }
 
             if let Some(sym) = self.root.borrow().children.get(start) {
-                return self.resolve_use_impl(&sym, &use_path[1..]);
+                cb(&sym);
+                return self.resolve_use_impl(&sym, &use_path[1..], cb);
             }
         }
         None
     }
 
-    pub fn resolve_use_impl(&self, node: &Rf<Scope>, use_path: &[String]) -> Option<Rf<Scope>> {
+    pub fn resolve_use_impl(
+        &self,
+        node: &Rf<Scope>,
+        use_path: &[String],
+        cb: impl Fn(&Rf<Scope>),
+    ) -> Option<Rf<Scope>> {
         if use_path.len() == 0 {
             match &node.borrow().value {
-                ScopeValue::Use(u) => return self.resolve_use(&u),
+                ScopeValue::Use(u) => return self.resolve_use(&u, cb),
                 _ => (),
             }
             return Some(node.clone());
         } else if let Some(first) = use_path.first() {
             if let Some(child) = node.borrow().children.get(first) {
-                return self.resolve_use_impl(child, &use_path[1..]);
+                cb(child);
+                return self.resolve_use_impl(child, &use_path[1..], cb);
             }
         }
+        None
+    }
+
+    pub fn iter_use<'b, U>(
+        &self,
+        mut path: impl Iterator<Item = (&'b str, U)>,
+        mut cb: impl FnMut(&Rf<Scope>, U),
+    ) -> Option<Rf<Scope>> {
+        if let Some(start) = path.next() {
+            if let Some(sym) = self.find_symbol_in_mod(start.0) {
+                cb(&sym, start.1);
+                return self.iter_use_impl(&sym, path, cb);
+            }
+
+            if let Some(sym) = self.root.borrow().children.get(start.0) {
+                cb(&sym, start.1);
+                return self.iter_use_impl(&sym, path, cb);
+            }
+        }
+        None
+    }
+
+    pub fn iter_use_impl<'b, U>(
+        &self,
+        node: &Rf<Scope>,
+        mut path: impl Iterator<Item = (&'b str, U)>,
+        mut cb: impl FnMut(&Rf<Scope>, U),
+    ) -> Option<Rf<Scope>> {
+        if let Some(nd) = path.next() {
+            if let Some(child) = node.borrow().children.get(nd.0) {
+                cb(child, nd.1);
+                return self.iter_use_impl(child, path, cb);
+            }
+        } else {
+            match &node.borrow().value {
+                ScopeValue::Use(u) => return self.resolve_use(&u, |_| {}),
+                _ => (),
+            }
+            return Some(node.clone());
+        }
+
         None
     }
 
