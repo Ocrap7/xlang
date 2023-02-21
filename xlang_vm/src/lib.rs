@@ -1,4 +1,4 @@
-use std::{fs::File, io::Read, rc::Rc, path::Path, sync::Arc};
+use std::{fs::File, io::Read, path::Path, sync::Arc};
 
 use evaluator::Evaluator;
 use xlang_core::Module;
@@ -7,7 +7,7 @@ use xlang_util::{format::TreeDisplay, Rf};
 use crate::{
     pass::CodePass,
     scope::{Scope, ScopeValue},
-    stdlib::{std_module, fill_module},
+    stdlib::{fill_module, std_module},
 };
 
 pub mod const_value;
@@ -36,12 +36,12 @@ pub fn run_file<P: AsRef<Path>>(path: P) {
 
     let lines: Vec<&str> = input.split(LINE_ENDING).collect();
 
-    let symbol_tree = Rf::new(Scope::new(ScopeValue::Root));
+    let symbol_tree = Rf::new(Scope::new(ScopeValue::Root, 0));
 
     {
         let std_module = std_module();
 
-        let code_pass = CodePass::new(symbol_tree.clone(), std_module.clone());
+        let code_pass = CodePass::new(symbol_tree.clone(), std_module.clone(), 0);
         let code_pass_state = code_pass.run();
         let std_mod_scope = code_pass_state.scope.module.clone();
 
@@ -63,9 +63,10 @@ pub fn run_file<P: AsRef<Path>>(path: P) {
         fill_module(std_mod_scope);
     }
 
-    let code_pass = CodePass::new(symbol_tree.clone(), module.clone());
+    let code_pass = CodePass::new(symbol_tree.clone(), module.clone(), 1);
     let code_pass_state = code_pass.run();
 
+    println!("{}", symbol_tree.format());
     let evaluator = Evaluator::new(module, code_pass_state.scope);
     let values = evaluator.evaluate();
 

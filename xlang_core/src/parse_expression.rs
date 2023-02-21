@@ -132,7 +132,9 @@ impl Parser {
             }
             if comma.is_none() {
                 self.add_error(ParseError {
-                    kind: ParseErrorKind::InvalidSyntax("Expected comma in function body!".to_string()),
+                    kind: ParseErrorKind::InvalidSyntax(
+                        "Expected comma in function body!".to_string(),
+                    ),
                     range: Range::default(),
                 });
                 stmts.push(stmt, comma);

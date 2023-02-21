@@ -1,3 +1,7 @@
-use std.io
+use std
 
-print(djij)
+data: (i8 a)
+
+var: (data d) -> (i8 a), a = d.a
+
+var(data(6))

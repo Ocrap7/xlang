@@ -1,4 +1,4 @@
-use std::{fs::File, io::Read, rc::Rc, sync::Arc};
+use std::{fs::File, io::Read, sync::Arc};
 
 use linked_hash_map::LinkedHashMap;
 use xlang_core::Module;
@@ -46,11 +46,15 @@ fn create_func<P: Iterator<Item = (String, Type)>, R: Iterator<Item = (String, T
     name: &str,
     p: P,
     r: R,
-    func: Arc<dyn Fn(&LinkedHashMap<String, ConstValue>) -> LinkedHashMap<String, ConstValue> + Sync + Send>,
+    func: Arc<
+        dyn Fn(&LinkedHashMap<String, ConstValue>) -> LinkedHashMap<String, ConstValue>
+            + Sync
+            + Send,
+    >,
 ) -> Rf<Scope> {
     // let rf = Rf::new(func as (dyn (FnMut(LinkedHashMap<String, ConstValue>) -> LinkedHashMap<String, ConstValue>) + 'static));
 
-    let sym = module.insert(name, ScopeValue::Root);
+    let sym = module.insert(name, ScopeValue::Root, 0);
 
     let cv = ScopeValue::ConstValue(ConstValue {
         kind: ConstValueKind::NativeFunction {

@@ -1,7 +1,4 @@
-use std::{
-    rc::Rc,
-    sync::{RwLock, RwLockReadGuard, RwLockWriteGuard, Arc},
-};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use linked_hash_map::LinkedHashMap;
 use xlang_core::{
@@ -53,13 +50,14 @@ impl Evaluator {
             .module
             .stmts
             .iter()
-            .map(|stmt| self.evaluate_statement(stmt))
+            .enumerate()
+            .map(|(index, stmt)| self.evaluate_statement(stmt, index))
             .collect();
 
         vals
     }
 
-    pub fn evaluate_statement(&self, statement: &Statement) -> ConstValue {
+    pub fn evaluate_statement(&self, statement: &Statement, index: usize) -> ConstValue {
         match statement {
             Statement::Decleration {
                 ident: SpannedToken(_, Token::Ident(id)),
@@ -73,6 +71,7 @@ impl Evaluator {
                         members,
                         ident: id.to_string(),
                     },
+                    index,
                 );
             }
             Statement::Decleration {
@@ -89,9 +88,9 @@ impl Evaluator {
                 let parameters = self.evaluate_params(parameters);
                 let return_parameters = self.evaluate_params(return_parameters);
 
-                self.wstate()
-                    .scope
-                    .update_value(id, ScopeValue::ConstValue(ConstValue::empty()));
+                // self.wstate()
+                //     .scope
+                //     .update_value(id, ScopeValue::ConstValue(ConstValue::empty()), index);
                 let sym = self.wstate().scope.find_symbol(id).unwrap();
                 self.wstate().scope.update_value(
                     id,
@@ -101,6 +100,7 @@ impl Evaluator {
                         return_parameters,
                         sym,
                     )),
+                    index,
                 );
             }
             Statement::Decleration {
@@ -108,35 +108,38 @@ impl Evaluator {
                 expr: Some(expr),
                 ..
             } => {
-                let expr = self.evaluate_expression(expr);
-                self.wstate()
-                    .scope
-                    .update_value(ident.as_str(), ScopeValue::ConstValue(expr));
+                let expr = self.evaluate_expression(expr, index);
+                self.wstate().scope.update_value(
+                    ident.as_str(),
+                    ScopeValue::ConstValue(expr),
+                    index,
+                );
             }
-            Statement::Expression(expr) => return self.evaluate_expression(expr),
+            Statement::Expression(expr) => return self.evaluate_expression(expr, index),
             Statement::List(list) => {
                 if list.num_children() == 1 {
                     let item = list
                         .iter_items()
                         .next()
                         .expect("Value should have been present. This is probably a rustc bug");
-                    return self.evaluate_statement(item);
+                    return self.evaluate_statement(item, 0);
                 } else {
                     let values: Vec<_> = list
                         .iter_items()
-                        .map(|stmt| self.evaluate_statement(stmt))
+                        .enumerate()
+                        .map(|(index, stmt)| self.evaluate_statement(stmt, index))
                         .collect();
                     return ConstValue::tuple(values);
                 }
             }
 
-            Statement::UseStatement { args, .. } => {
-                let path = args
-                    .iter_items()
-                    .map(|sym| sym.as_str().to_string())
-                    .collect();
-                self.wstate().scope.add_use(path)
-            }
+            // Statement::UseStatement { args, .. } => {
+            //     let path = args
+            //         .iter_items()
+            //         .map(|sym| sym.as_str().to_string())
+            //         .collect();
+            //     self.wstate().scope.add_use(path)
+            // }
             _ => (),
         }
         ConstValue::empty()
@@ -153,7 +156,7 @@ impl Evaluator {
         LinkedHashMap::from_iter(iter)
     }
 
-    pub fn evaluate_expression(&self, expression: &Expression) -> ConstValue {
+    pub fn evaluate_expression(&self, expression: &Expression, index: usize) -> ConstValue {
         match expression {
             Expression::Integer(val, _, _) => ConstValue::cinteger(*val),
             Expression::Float(val, _, _) => ConstValue::cfloat(*val),
@@ -181,13 +184,13 @@ impl Evaluator {
                 left: Some(left),
                 right: Some(right),
                 op_token: Some(SpannedToken(_, Token::Operator(o))),
-            } => self.evaluate_binary_expression(left, o, right),
+            } => self.evaluate_binary_expression(left, o, right, index),
             Expression::FunctionCall {
                 expr,
                 args: raw_args,
             } => {
-                let expr = self.evaluate_expression(expr);
-                let args = self.evaluate_args(raw_args);
+                let expr = self.evaluate_expression(expr, index);
+                let args = self.evaluate_args(raw_args, index);
 
                 match (expr.ty, expr.kind) {
                     // Function is called
@@ -223,9 +226,11 @@ impl Evaluator {
                                     });
                                     return None;
                                 }
-                                self.wstate()
-                                    .scope
-                                    .update_value(&name, ScopeValue::ConstValue(arg));
+                                self.wstate().scope.update_value(
+                                    &name,
+                                    ScopeValue::ConstValue(arg),
+                                    index,
+                                );
 
                                 Some(())
                             })
@@ -235,7 +240,7 @@ impl Evaluator {
                             return ConstValue::empty();
                         }
 
-                        let _ = self.evaluate_statement(&body);
+                        let _ = self.evaluate_statement(&body, index);
 
                         // TODO: verify types here as well
 
@@ -263,7 +268,7 @@ impl Evaluator {
                                         },
                                         range: expression.get_range(),
                                     });
-                                    ConstValue::default_for(ty)
+                                    ConstValue::default_for(&ty)
                                 };
                                 (name, vl)
                             })
@@ -277,8 +282,7 @@ impl Evaluator {
                     }
                     (
                         Type::Function {
-                            parameters: ptypes,
-                            ..
+                            parameters: ptypes, ..
                         },
                         ConstValueKind::NativeFunction { rf, callback },
                     ) => {
@@ -389,13 +393,16 @@ impl Evaluator {
         raw_left: &Expression,
         op: &Operator,
         raw_right: &Expression,
+        index: usize,
     ) -> ConstValue {
         match (op, raw_left) {
             (Operator::Equals, Expression::Ident(SpannedToken(_, Token::Ident(name)))) => {
-                let right = self.evaluate_expression(raw_right);
-                self.wstate()
-                    .scope
-                    .update_value(name, ScopeValue::ConstValue(right.clone()));
+                let right = self.evaluate_expression(raw_right, index);
+                self.wstate().scope.update_value(
+                    name,
+                    ScopeValue::ConstValue(right.clone()),
+                    index,
+                );
                 return right;
             }
             (
@@ -406,7 +413,7 @@ impl Evaluator {
                     right: Some(dright),
                 },
             ) => {
-                let right = self.evaluate_expression(raw_right);
+                let right = self.evaluate_expression(raw_right, index);
                 let scope = &mut self.wstate().scope;
                 let updated_value = scope.follow_member_access_mut(dleft, dright, |cv| {
                     *cv = right.clone();
@@ -417,7 +424,7 @@ impl Evaluator {
                 return right;
             }
             (Operator::Dot, _) => {
-                let left = self.evaluate_expression(raw_left);
+                let left = self.evaluate_expression(raw_left, index);
                 match (left.kind, raw_right) {
                     (
                         ConstValueKind::RecordInstance { members, .. },
@@ -432,8 +439,8 @@ impl Evaluator {
             }
             _ => (),
         }
-        let left = self.evaluate_expression(raw_left);
-        let right = self.evaluate_expression(raw_right);
+        let left = self.evaluate_expression(raw_left, index);
+        let right = self.evaluate_expression(raw_right, index);
 
         let res = match (&left.ty, &right.ty) {
             (Type::CoercibleInteger, Type::CoercibleInteger) => match op {
@@ -582,9 +589,9 @@ impl Evaluator {
         }
     }
 
-    fn evaluate_args(&self, args: &ArgList) -> Vec<ConstValue> {
+    fn evaluate_args(&self, args: &ArgList, index: usize) -> Vec<ConstValue> {
         args.iter_items()
-            .map(|expr| self.evaluate_expression(expr))
+            .map(|expr| self.evaluate_expression(expr, index))
             .collect()
     }
 

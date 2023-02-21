@@ -11,8 +11,7 @@ impl<T> PartialEq for Rf<T> {
     }
 }
 
-impl<T> Eq for Rf<T> { }
-
+impl<T> Eq for Rf<T> {}
 
 impl<T: ?Sized> Clone for Rf<T> {
     fn clone(&self) -> Self {

@@ -1,5 +1,6 @@
 #![feature(box_patterns)]
 
+use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
@@ -13,8 +14,8 @@ use xlang_core::token::{Operator, Span, SpannedToken, Token};
 use xlang_core::Module;
 use xlang_util::format::TreeDisplay;
 use xlang_util::Rf;
+use xlang_vm::const_value::{ConstValue, ConstValueKind};
 use xlang_vm::error::ErrorLevel;
-use xlang_vm::evaluator::Evaluator;
 use xlang_vm::pass::CodePass;
 use xlang_vm::scope::{Scope, ScopeManager, ScopeValue};
 use xlang_vm::stdlib::{fill_module, std_module};
@@ -123,27 +124,66 @@ impl Backend {
         builder: &mut SemanticTokenBuilder,
     ) {
         match value {
-            Expression::Ident(tok @ SpannedToken(_, Token::Ident(_value_str))) => {
-                // TODO: lookup identifier in symbol tree
-                // if let Some(this_sym) = module.resolve_symbol_chain_indicies(scope_index.iter()) {
-                //     if let Some(found_sym) = module.resolve_symbol(&this_sym, &value_str) {
-                //         builder.push(
-                //             tok.span().line_num,
-                //             tok.span().position,
-                //             tok.span().length,
-                //             get_stype_index(SemanticTokenType::TYPE),
-                //             0,
-                //         );
-                //     };
-                // };
-                // }
-                builder.push(
-                    tok.span().line_num,
-                    tok.span().position,
-                    tok.span().length,
-                    get_stype_index(SemanticTokenType::VARIABLE),
-                    0,
+            Expression::Ident(tok) => {
+                let mut current_scope = Vec::new();
+                scope.push_scope_chain(&mut current_scope, scope_index.iter());
+
+                println!(
+                    "Scope: {} -- {}  -- {:?}",
+                    tok.as_str(),
+                    current_scope.format(),
+                    scope_index
                 );
+                if let Some(sym) = scope.find_symbol_in_scope(tok.as_str(), &current_scope) {
+                    println!("Found: {}", tok.as_str());
+                    let sym = sym.borrow();
+
+                    match &sym.value {
+                        ScopeValue::ConstValue(ConstValue {
+                            kind:
+                                ConstValueKind::Function { .. } | ConstValueKind::NativeFunction { .. },
+                            ..
+                        }) => {
+                            builder.push(
+                                tok.span().line_num,
+                                tok.span().position,
+                                tok.span().length,
+                                get_stype_index(SemanticTokenType::FUNCTION),
+                                0,
+                            );
+                        }
+                        ScopeValue::Record { .. } => {
+                            builder.push(
+                                tok.span().line_num,
+                                tok.span().position,
+                                tok.span().length,
+                                get_stype_index(SemanticTokenType::TYPE),
+                                0,
+                            );
+                        }
+                        ScopeValue::ConstValue(ConstValue {
+                            kind: ConstValueKind::RecordInstance { .. },
+                            ..
+                        }) => {
+                            builder.push(
+                                tok.span().line_num,
+                                tok.span().position,
+                                tok.span().length,
+                                get_stype_index(SemanticTokenType::TYPE),
+                                0,
+                            );
+                        }
+                        _ => {
+                            builder.push(
+                                tok.span().line_num,
+                                tok.span().position,
+                                tok.span().length,
+                                get_stype_index(SemanticTokenType::VARIABLE),
+                                0,
+                            );
+                        }
+                    }
+                }
             }
             Expression::Float(_, _, tok) => {
                 builder.push(
@@ -173,27 +213,11 @@ impl Backend {
                 self.recurse_params(module, return_parameters, scope_index, builder);
 
                 if let Some(body) = body {
-                    // for item in body.iter_items() {
                     self.recurse(module, scope, body, scope_index, builder);
-                    // }
                 }
             }
             Expression::FunctionCall { expr, args } => {
-                match &**expr {
-                    Expression::Ident(tok) => {
-                        builder.push(
-                            tok.span().line_num,
-                            tok.span().position,
-                            tok.span().length,
-                            get_stype_index(SemanticTokenType::FUNCTION),
-                            0,
-                        );
-                    }
-                    _ => {
-                        self.recurse_expression(expr, module, scope, scope_index, builder);
-                    }
-                }
-
+                self.recurse_expression(expr, module, scope, scope_index, builder);
                 self.recurse_args(module, scope, args, scope_index, builder);
             }
             Expression::Tuple(_) => (),
@@ -237,7 +261,6 @@ impl Backend {
     ) {
         for item in args.iter_items() {
             if let Some(ty) = &item.ty {
-                // TODO: recurse type
                 self.recurse_type(module, ty, scope_index, builder);
             }
 
@@ -335,7 +358,7 @@ impl Backend {
                         0,
                     )
                 }
-                
+
                 scope.iter_use(args.iter_items().map(|f| (f.as_str(), f)), |sym, ud| {
                     builder.push(
                         ud.span().line_num,
@@ -448,11 +471,15 @@ impl LanguageServer for Backend {
                 return Ok(None)
             };
 
-            let mut builder = SemanticTokenBuilder::default();
             let mut scope = Vec::with_capacity(50);
+            if let Some(id) = mods.1.index_of_mod(&mods.0.name) {
+                scope.push(id);
+            }
+
+            let mut builder = SemanticTokenBuilder::default();
             scope.push(0);
             for (i, tok) in mods.0.stmts.iter().enumerate() {
-                scope[0] = i;
+                scope[1] = i;
                 self.recurse(&mods.0, &mods.1, tok, &mut scope, &mut builder);
             }
             builder.build()
@@ -538,7 +565,7 @@ impl LanguageServer for Backend {
 
         let module = Arc::new(out.0);
 
-        let code_pass = CodePass::new(self.symbol_tree.clone(), module.clone());
+        let code_pass = CodePass::new(self.symbol_tree.clone(), module.clone(), 1);
         let code_pass_state = code_pass.run();
         println!("MMKLSDAJFLAKDSJFoij {}", self.symbol_tree.format());
 
@@ -583,7 +610,7 @@ impl LanguageServer for Backend {
 
             let module = Arc::new(out.0);
 
-            let code_pass = CodePass::new(self.symbol_tree.clone(), module.clone());
+            let code_pass = CodePass::new(self.symbol_tree.clone(), module.clone(), 1);
             let code_pass_state = code_pass.run();
 
             let diags: Vec<_> = code_pass_state
@@ -602,7 +629,7 @@ impl LanguageServer for Backend {
                 })
                 .collect();
 
-        println!("diagns: {}", diags.len());
+            println!("diagns: {}", diags.len());
             self.client
                 .publish_diagnostics(doc.uri.clone(), diags, None)
                 .await;
@@ -651,7 +678,7 @@ async fn main() {
     let (service, socket) = LspService::new(|client| {
         let client = Arc::new(client);
 
-        let symbol_tree = Rf::new(Scope::new(ScopeValue::Root));
+        let symbol_tree = Rf::new(Scope::new(ScopeValue::Root, 0));
         {
             // let std_module = std_module();
 
@@ -674,7 +701,7 @@ async fn main() {
             //     println!("{value}");
             // }
             // let std_mod_scope = Rf::new(Scope::new(ScopeValue::Root));
-            let std_mod_scope = symbol_tree.borrow_mut().insert("std", ScopeValue::Root);
+            let std_mod_scope = symbol_tree.borrow_mut().insert("std", ScopeValue::Root, 0);
 
             fill_module(std_mod_scope);
         }

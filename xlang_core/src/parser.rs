@@ -136,7 +136,9 @@ impl Parser {
                     }
                     if comma.is_none() {
                         self.add_error(ParseError {
-                            kind: ParseErrorKind::InvalidSyntax("Expected comma in arguments!".to_string()),
+                            kind: ParseErrorKind::InvalidSyntax(
+                                "Expected comma in arguments!".to_string(),
+                            ),
                             range: Range::default(),
                         });
                     }
@@ -210,7 +212,9 @@ impl Parser {
                     }
                     if comma.is_none() {
                         self.add_error(ParseError {
-                            kind: ParseErrorKind::InvalidSyntax("Expected comma in arguments!".to_string()),
+                            kind: ParseErrorKind::InvalidSyntax(
+                                "Expected comma in arguments!".to_string(),
+                            ),
                             range: Range::default(),
                         });
                     }

@@ -55,6 +55,11 @@
 					"type": "string",
 					"scope": "resource",
 					"markdownDescription": "Path to X language server binary"
+				},
+				"xlang.debug": {
+					"type": "boolean",
+					"scope": "resource",
+					"markdownDescription": "Listen for server isntead of automatically starting it"
 				}
 			}
 		}

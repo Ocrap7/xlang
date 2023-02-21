@@ -19,7 +19,6 @@ pub mod token;
 
 use error::ParseError;
 pub use pollster;
-use token::{SpannedToken, Token};
 
 impl Module {
     pub fn parse_str(input: &str, mod_name: &str) -> (Module, Vec<ParseError>) {
@@ -96,7 +95,6 @@ impl Module {
         //     });
 
         // md.descend(&parsed);
-
 
         (
             Module {

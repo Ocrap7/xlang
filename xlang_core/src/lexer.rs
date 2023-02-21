@@ -116,11 +116,7 @@ impl Lexer {
         let cnt = input
             .chars()
             .fold(0u8, |acc, c| if c == '.' { 1 + acc } else { acc });
-        if !input
-            .chars().any(|c| !(c.is_numeric() || c == '.'))
-            && cnt <= 1
-            && del
-        {
+        if !input.chars().any(|c| !(c.is_numeric() || c == '.')) && cnt <= 1 && del {
             if cnt == 1 {
                 let val = input.parse().unwrap_or(0.0f64);
                 return Some(Token::Float(val));
@@ -131,15 +127,17 @@ impl Lexer {
         }
 
         // If the next character is a delimeter
-        let del = next.map(|c| !(c.is_alphanumeric() || c == '_')).unwrap_or(true);
+        let del = next
+            .map(|c| !(c.is_alphanumeric() || c == '_'))
+            .unwrap_or(true);
 
         // match identifiers
         if input
-            .chars().next()
+            .chars()
+            .next()
             .filter(|f| f.is_alphabetic() || *f == '_')
             .is_some()
-            & !input
-                .chars().any(|c| !(c.is_alphanumeric() || c == '_'))
+            & !input.chars().any(|c| !(c.is_alphanumeric() || c == '_'))
             && del
         {
             return Some(Token::Ident(input.to_string()));

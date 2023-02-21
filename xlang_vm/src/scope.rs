@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc, sync::Arc};
+use std::{borrow::Borrow, collections::HashMap, sync::Arc};
 
 use linked_hash_map::LinkedHashMap;
 use xlang_core::{
@@ -65,21 +65,23 @@ impl TreeDisplay for ScopeValue {
 
 pub struct Scope {
     pub value: ScopeValue,
-    pub children: HashMap<String, Rf<Scope>>,
+    pub children: LinkedHashMap<String, Rf<Scope>>,
     pub uses: Vec<Vec<String>>,
+    pub index: usize,
 }
 
 impl Scope {
-    pub fn new(value: ScopeValue) -> Scope {
+    pub fn new(value: ScopeValue, index: usize) -> Scope {
         Scope {
             value,
-            children: HashMap::new(),
+            children: LinkedHashMap::new(),
             uses: Vec::new(),
+            index,
         }
     }
 
-    pub fn insert(&mut self, name: &str, val: ScopeValue) -> Rf<Scope> {
-        let rf = Rf::new(Scope::new(val));
+    pub fn insert(&mut self, name: &str, val: ScopeValue, index: usize) -> Rf<Scope> {
+        let rf = Rf::new(Scope::new(val, index));
 
         self.children.insert(name.to_string(), rf.clone());
 
@@ -97,26 +99,27 @@ impl Scope {
 
 impl NodeDisplay for Scope {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str("Scope")
+        write!(f, "Scope - {}", self.index)
     }
 }
 
 impl TreeDisplay for Scope {
     fn num_children(&self) -> usize {
-        1 + (if self.children.len() > 0 { 1 } else { 0 })
+        2 + (if self.children.len() > 0 { 1 } else { 0 })
             + (if self.uses.len() > 0 { 1 } else { 0 })
     }
 
     fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<()>> {
         match _index {
             0 => Some(&self.value),
+            1 => Some(&self.index),
             _ => None,
         }
     }
 
     fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
         match _index {
-            1 if self.uses.len() > 0 => Box::new(GrouperIter(
+            2 if self.uses.len() > 0 => Box::new(GrouperIter(
                 "Use".to_string(),
                 self.uses.len(),
                 self.uses.iter().map(|f| f as &'a dyn TreeDisplay),
@@ -166,6 +169,35 @@ impl<'a> ScopeManager {
         if let Some(sym) = self.current_scope.last() {
             let mut sym = sym.borrow_mut();
             sym.uses.push(path)
+        }
+    }
+
+    pub fn push_scope_chain<'b>(
+        &self,
+        buf: &mut Vec<Rf<Scope>>,
+        chain: impl Iterator<Item = &'a usize>,
+    ) {
+        self.push_scope_chain_impl(&self.root, buf, chain)
+    }
+
+    pub fn push_scope_chain_impl<'b>(
+        &self,
+        node: &Rf<Scope>,
+        buf: &mut Vec<Rf<Scope>>,
+        mut chain: impl Iterator<Item = &'b usize>,
+    ) {
+        if let Some(next) = chain.next() {
+            if let Some(child) = node
+                .borrow()
+                .children
+                .iter()
+                .find(|f| f.1.borrow().index == *next)
+            {
+                println!("Push {}", next);
+                buf.push(child.1.clone());
+
+                self.push_scope_chain_impl(&child.1, buf, chain);
+            }
         }
     }
 
@@ -294,6 +326,94 @@ impl<'a> ScopeManager {
         None
     }
 
+    pub fn index_of_mod(&self, name: &str) -> Option<usize> {
+        self.root.borrow().children.iter().position(|f| f.0 == name)
+    }
+
+    // pub fn find_symbol_local_in_scope(&'a self, name: &str, scope: &Vec<usize>) -> Option<Rf<Scope>> {
+    //    scope
+    //         .last()
+    //         .and_then(|scope| scope.borrow().children.get(name).cloned())
+    // }
+
+    pub fn find_symbol_in_mod_in_scope(
+        &'a self,
+        name: &str,
+        scope: &Vec<Rf<Scope>>,
+    ) -> Option<Rf<Scope>> {
+        scope
+            .iter()
+            .rev()
+            .find_map(|scope| scope.borrow().children.get(name).cloned())
+
+        // let mut curr = self.root.clone();
+        // scope
+        //     .iter()
+        //     .map(|f| {
+        //         let p = if let Some(sym) = curr.borrow().children.iter().nth(*f) {
+        //             sym.1.clone()
+        //         } else {
+        //             return None
+        //         };
+        //         curr = p.clone();
+        //         Some(p)
+        //     })
+        //     // .rev()
+        //     .find_map(|scope| scope?.borrow().children.get(name).cloned())
+    }
+
+    pub fn find_symbol_in_scope(&'a self, name: &str, scope: &Vec<Rf<Scope>>) -> Option<Rf<Scope>> {
+        if let Some(sym) = self.find_symbol_in_mod_in_scope(name, scope) {
+            return Some(sym);
+        }
+
+        let use_found = scope.iter().rev().find_map(|scope| {
+            scope.borrow().uses.iter().find_map(|us| {
+                let node = self.resolve_use(us, |_| {})?;
+                let node = node.borrow();
+                node.children.get(name).cloned()
+            })
+        });
+        if let Some(fnd) = use_found {
+            return Some(fnd);
+        }
+
+        None
+    }
+
+    pub fn resolve_symbol_indicies<'b>(
+        &self,
+        name: &str,
+        indicies: impl Iterator<Item = &'b usize>,
+    ) -> Option<Rf<Scope>> {
+        self.resolve_symbol_indicies_impl(&self.root, name, indicies)
+    }
+
+    pub fn resolve_symbol_indicies_impl<'b>(
+        &self,
+        node: &Rf<Scope>,
+        name: &str,
+        mut indicies: impl Iterator<Item = &'b usize>,
+    ) -> Option<Rf<Scope>> {
+        if let Some(next) = indicies.next() {
+            let node = node.borrow();
+            let node = node.children.iter().find(|f| f.1.borrow().index == *next)?;
+
+            return self.resolve_symbol_indicies_impl(&node.1, name, indicies);
+            // if let Some(sym) = self.resolve_symbol_indicies_impl(&node.1, name, indicies) {
+            //     return Some(sym)
+            // } else {
+            //     node.1.borrow().children.get(name).cloned()
+            // }
+        } else {
+            // if let Some(sym) = node.borrow().children.get(name) {
+            //     return Some(sym.clone())
+            // }
+            // None
+            Some(node.clone())
+        }
+    }
+
     pub fn resolve_use(&self, use_path: &[String], cb: impl Fn(&Rf<Scope>)) -> Option<Rf<Scope>> {
         if let Some(start) = use_path.first() {
             if let Some(sym) = self.find_symbol_in_mod(start) {
@@ -301,7 +421,9 @@ impl<'a> ScopeManager {
                 return self.resolve_use_impl(&sym, &use_path[1..], cb);
             }
 
+            println!("Start {:?}", use_path);
             if let Some(sym) = self.root.borrow().children.get(start) {
+                println!("Sym ");
                 cb(&sym);
                 return self.resolve_use_impl(&sym, &use_path[1..], cb);
             }
@@ -371,7 +493,12 @@ impl<'a> ScopeManager {
         None
     }
 
-    pub fn update_value(&mut self, name: &str, value: ScopeValue) -> Option<ScopeValue> {
+    pub fn update_value(
+        &mut self,
+        name: &str,
+        value: ScopeValue,
+        index: usize,
+    ) -> Option<ScopeValue> {
         if let Some(sym) = self.find_symbol(name) {
             let old_value = std::mem::replace(&mut sym.borrow_mut().value, value);
             return Some(old_value);
@@ -380,15 +507,15 @@ impl<'a> ScopeManager {
         if let Some(scp) = self.current_scope.last() {
             scp.borrow_mut()
                 .children
-                .insert(name.to_string(), Rf::new(Scope::new(value)));
+                .insert(name.to_string(), Rf::new(Scope::new(value, index)));
         }
 
         None
     }
 
-    pub fn insert_value(&mut self, name: &str, value: ScopeValue) -> Rf<Scope> {
+    pub fn insert_value(&mut self, name: &str, value: ScopeValue, index: usize) -> Rf<Scope> {
         if let Some(scp) = self.current_scope.last() {
-            let rf = Rf::new(Scope::new(value));
+            let rf = Rf::new(Scope::new(value, index));
             scp.borrow_mut()
                 .children
                 .insert(name.to_string(), rf.clone());

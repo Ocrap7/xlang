@@ -38,6 +38,7 @@ let client: LanguageClient
 
 export async function activate(context: ExtensionContext) {
     let serverModule = workspace.getConfiguration('xlang').get<string>('lsPath')
+    let debug = workspace.getConfiguration('xlang').get<boolean>('debug')
 
     if (serverModule === '' || serverModule === undefined) {
         serverModule = await promptLSPath()
@@ -65,31 +66,41 @@ export async function activate(context: ExtensionContext) {
 
     let serverOptions = () => {
         return new Promise<StreamInfo>((resolve, reject) => {
-            let ls = exec(`${serverModule}`, (stderr, stdout, _) => {
-                if (stderr) {
-                    console.error(`exec error: ${stderr} ${serverModule}`);
-                    return;
-                }
-                console.log(`stdout: ${stdout}`);
-                console.error(`stderr: ${stderr}`);
-            })
-            console.log(ls)
-
-            ls.stderr.on('data', data => {
-                console.error(data)
-            })
-            ls.stderr.on('error', console.error)
-
-            ls.stdout.on('data', data => {
-                console.log('fjsdklf', data)
+            if (debug) {
                 let socket = net.connect(connectionInfo)
                 let result: StreamInfo = {
                     writer: socket,
                     reader: socket,
                 }
                 resolve(result)
-            })
-            ls.stdout.on('error', console.error)
+            } else {
+
+                let ls = exec(`${serverModule}`, (stderr, stdout, _) => {
+                    if (stderr) {
+                        console.error(`exec error: ${stderr} ${serverModule}`);
+                        return;
+                    }
+                    console.log(`stdout: ${stdout}`);
+                    console.error(`stderr: ${stderr}`);
+                })
+                console.log(ls)
+
+                ls.stderr.on('data', data => {
+                    console.error(data)
+                })
+                ls.stderr.on('error', console.error)
+
+                ls.stdout.on('data', data => {
+                    console.log('fjsdklf', data)
+                    let socket = net.connect(connectionInfo)
+                    let result: StreamInfo = {
+                        writer: socket,
+                        reader: socket,
+                    }
+                    resolve(result)
+                })
+                ls.stdout.on('error', console.error)
+            }
         })
     }
 

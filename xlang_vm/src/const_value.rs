@@ -1,4 +1,7 @@
-use std::{fmt::{Debug, Display}, rc::Rc, sync::Arc};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 
 use linked_hash_map::LinkedHashMap;
 use xlang_core::ast::Statement;
@@ -214,7 +217,7 @@ impl TreeDisplay for Type {
         match self {
             Type::Function { .. } => 2,
             Type::Tuple(tu) => tu.len(),
-            Type::RecordInstance { members, ..} => members.len(),
+            Type::RecordInstance { members, .. } => members.len(),
             _ => 0,
         }
     }
@@ -264,8 +267,11 @@ pub enum ConstValueKind {
     },
     NativeFunction {
         rf: Rf<Scope>,
-        callback:
-            Arc<dyn Fn(&LinkedHashMap<String, ConstValue>) -> LinkedHashMap<String, ConstValue> + Sync + Send>,
+        callback: Arc<
+            dyn Fn(&LinkedHashMap<String, ConstValue>) -> LinkedHashMap<String, ConstValue>
+                + Sync
+                + Send,
+        >,
     },
     Tuple(Vec<ConstValue>),
     RecordInstance {
@@ -381,7 +387,7 @@ impl TreeDisplay for ConstValueKind {
 
     fn child_at_bx<'a>(&'a self, index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
         match self {
-            ConstValueKind::RecordInstance {  members, .. } => members.child_at_bx(index),
+            ConstValueKind::RecordInstance { members, .. } => members.child_at_bx(index),
             _ => panic!(),
         }
     }
@@ -401,7 +407,7 @@ impl ConstValue {
         }
     }
 
-    pub fn default_for(ty: Type) -> ConstValue {
+    pub fn default_for(ty: &Type) -> ConstValue {
         let kind = match ty {
             Type::Empty => ConstValueKind::Empty,
             Type::Integer { .. } => ConstValueKind::Integer { value: 0 },
@@ -409,7 +415,10 @@ impl ConstValue {
             _ => ConstValueKind::Empty,
         };
 
-        ConstValue { ty, kind }
+        ConstValue {
+            ty: ty.clone(),
+            kind,
+        }
     }
 
     pub fn integer(value: u64, width: u8, signed: bool) -> ConstValue {

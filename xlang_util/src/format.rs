@@ -102,20 +102,10 @@ pub trait TreeDisplay<U = ()>: NodeDisplay + AsTrait<U> {
         for i in 0..n {
             let child = self.child_at(i);
             if let Some(child) = child {
-                child.write(
-                    f,
-                    (i + 1).try_into().unwrap(),
-                    &nindent,
-                    i == n - 1,
-                )?;
+                child.write(f, (i + 1).try_into().unwrap(), &nindent, i == n - 1)?;
             } else {
                 let child = self.child_at_bx(i);
-                child.write(
-                    f,
-                    (i + 1).try_into().unwrap(),
-                    &nindent,
-                    i == n - 1,
-                )?;
+                child.write(f, (i + 1).try_into().unwrap(), &nindent, i == n - 1)?;
             }
         }
 
@@ -215,7 +205,11 @@ impl<'a, I: Iterator<Item = &'a dyn TreeDisplay> + Clone> TreeDisplay for Groupe
     }
 }
 
-pub struct BoxedGrouperIter<'a, I: Iterator<Item = Box<dyn TreeDisplay + 'a>>>(pub String, pub usize, pub I);
+pub struct BoxedGrouperIter<'a, I: Iterator<Item = Box<dyn TreeDisplay + 'a>>>(
+    pub String,
+    pub usize,
+    pub I,
+);
 
 impl<'b, I: Iterator<Item = Box<dyn TreeDisplay + 'b>>> NodeDisplay for BoxedGrouperIter<'b, I> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -223,13 +217,15 @@ impl<'b, I: Iterator<Item = Box<dyn TreeDisplay + 'b>>> NodeDisplay for BoxedGro
     }
 }
 
-impl<'b, I: Iterator<Item = Box<dyn TreeDisplay + 'b>> + Clone> TreeDisplay for BoxedGrouperIter<'b, I> {
+impl<'b, I: Iterator<Item = Box<dyn TreeDisplay + 'b>> + Clone> TreeDisplay
+    for BoxedGrouperIter<'b, I>
+{
     fn num_children(&self) -> usize {
         self.1
     }
 
     fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<()>> {
-        None 
+        None
     }
 
     fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
@@ -283,7 +279,7 @@ impl NodeDisplay for BoxRef<'_> {
 
 impl TreeDisplay for BoxRef<'_> {
     fn num_children(&self) -> usize {
-        self.0.num_children() 
+        self.0.num_children()
     }
 
     fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay<()>> {
@@ -404,6 +400,22 @@ impl NodeDisplay for String {
 }
 
 impl TreeDisplay for String {
+    fn num_children(&self) -> usize {
+        0
+    }
+
+    fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay> {
+        None
+    }
+}
+
+impl NodeDisplay for usize {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(&self.to_string())
+    }
+}
+
+impl TreeDisplay for usize {
     fn num_children(&self) -> usize {
         0
     }
