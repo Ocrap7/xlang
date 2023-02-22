@@ -1,4 +1,4 @@
-use std::sync::{RwLock, RwLockReadGuard};
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use crate::{
     ast::{ArgList, Param, ParamaterList, PunctuationList, Statement},
@@ -21,6 +21,10 @@ impl Parser {
 
     pub fn get_errors(&self) -> RwLockReadGuard<'_, Vec<ParseError>> {
         self.errors.read().unwrap()
+    }
+
+    pub fn get_errors_mut(&self) -> RwLockWriteGuard<'_, Vec<ParseError>> {
+        self.errors.write().unwrap()
     }
 
     pub fn add_error(&self, error: ParseError) {

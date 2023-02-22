@@ -1,6 +1,7 @@
 use crate::{
-    ast::{Expression, PunctuationList, Statement, Type},
+    ast::{Expression, ParsedTemplate, ParsedTemplateString, PunctuationList, Statement, Type},
     error::{ParseError, ParseErrorKind},
+    lexer::Template,
     parser::Parser,
     token::{Operator, Range, SpannedToken, Token},
 };
@@ -159,6 +160,29 @@ impl Parser {
                 self.tokens.next().unwrap().clone(),
             )),
             Some(Token::Ident(_)) => Some(Expression::Ident(self.tokens.next().unwrap().clone())),
+            Some(Token::TemplateString(ts)) => {
+                let tok = self.tokens.next().unwrap();
+                let v: Vec<_> = ts
+                    .iter()
+                    .filter_map(|t| match t {
+                        Template::String(s) => Some(ParsedTemplate::String(s.clone())),
+                        Template::Template(t, o, c) => Some(ParsedTemplate::Template(
+                            Box::new({
+                                let parser = Parser::new(t.clone());
+                                let expr = parser.parse_expression(0)?;
+
+                                let mut errors = self.errors.write().unwrap();
+                                errors.append(&mut parser.get_errors_mut());
+
+                                expr
+                            }),
+                            o.clone(),
+                            c.clone(),
+                        )),
+                    })
+                    .collect();
+                Some(Expression::String(ParsedTemplateString(v), tok.clone()))
+            }
             _ => None,
         }
     }

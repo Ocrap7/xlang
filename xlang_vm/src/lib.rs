@@ -1,3 +1,4 @@
+#![feature(iter_intersperse)]
 use std::{fs::File, io::Read, path::Path, sync::Arc};
 
 use evaluator::Evaluator;

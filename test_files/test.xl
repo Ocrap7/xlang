@@ -1,7 +1,6 @@
 use std
 
-data: (i8 a)
+d: 8
+var: "djkl {7} djl"
 
-var: (data d) -> (i8 a), a = d.a
-
-var(data(6))
+print(var)

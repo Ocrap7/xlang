@@ -9,7 +9,9 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::request::Request;
 use tower_lsp::{lsp_types::*, LanguageServer};
 use tower_lsp::{Client, LspService, Server};
-use xlang_core::ast::{ArgList, AstNode, Expression, ParamaterList, Statement, Type};
+use xlang_core::ast::{
+    ArgList, AstNode, Expression, ParamaterList, ParsedTemplate, Statement, Type,
+};
 use xlang_core::token::{Operator, Span, SpannedToken, Token};
 use xlang_core::Module;
 use xlang_util::format::TreeDisplay;
@@ -124,18 +126,61 @@ impl Backend {
         builder: &mut SemanticTokenBuilder,
     ) {
         match value {
+            Expression::String(template_string, tok) => {
+                builder.push(
+                    tok.span().line_num,
+                    tok.span().position,
+                    1,
+                    get_stype_index(SemanticTokenType::STRING),
+                    0,
+                );
+
+                for templ in &template_string.0 {
+                    match templ {
+                        ParsedTemplate::String(s) => {
+                            builder.push(
+                                s.span().line_num,
+                                s.span().position,
+                                s.span().length,
+                                get_stype_index(SemanticTokenType::STRING),
+                                0,
+                            );
+                        }
+                        ParsedTemplate::Template(st, o, c) => {
+                            // builder.push(
+                            //     o.span().line_num,
+                            //     o.span().position,
+                            //     o.span().length + 4,
+                            //     get_stype_index(SemanticTokenType::new("formatSpecifier")),
+                            //     0,
+                            // );
+                            self.recurse_expression(st, module, scope, scope_index, builder);
+                            // builder.push(
+                            //     c.span().line_num,
+                            //     c.span().position,
+                            //     c.span().length,
+                            //     get_stype_index(SemanticTokenType::KEYWORD),
+                            //     0,
+                            // );
+                        }
+                        _ => (),
+                    }
+                }
+
+                println!("lenln{}", tok.span().position + tok.span().length);
+                builder.push(
+                    tok.span().line_num,
+                    tok.span().position + tok.span().length - 1,
+                    1,
+                    get_stype_index(SemanticTokenType::STRING),
+                    0,
+                );
+            }
             Expression::Ident(tok) => {
                 let mut current_scope = Vec::new();
                 scope.push_scope_chain(&mut current_scope, scope_index.iter());
 
-                println!(
-                    "Scope: {} -- {}  -- {:?}",
-                    tok.as_str(),
-                    current_scope.format(),
-                    scope_index
-                );
                 if let Some(sym) = scope.find_symbol_in_scope(tok.as_str(), &current_scope) {
-                    println!("Found: {}", tok.as_str());
                     let sym = sym.borrow();
 
                     match &sym.value {

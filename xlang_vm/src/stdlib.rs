@@ -32,10 +32,10 @@ pub fn fill_module(module: Rf<Scope>) {
     create_func(
         &mut module,
         "print",
-        [("name".to_string(), Type::Empty)].into_iter(),
+        [("data".to_string(), Type::String)].into_iter(),
         [].into_iter(),
         Arc::new(|params| {
-            println!("{}", params.get("name").unwrap());
+            println!("{}", params.get("data").unwrap());
             LinkedHashMap::new()
         }),
     );
@@ -52,8 +52,6 @@ fn create_func<P: Iterator<Item = (String, Type)>, R: Iterator<Item = (String, T
             + Send,
     >,
 ) -> Rf<Scope> {
-    // let rf = Rf::new(func as (dyn (FnMut(LinkedHashMap<String, ConstValue>) -> LinkedHashMap<String, ConstValue>) + 'static));
-
     let sym = module.insert(name, ScopeValue::Root, 0);
 
     let cv = ScopeValue::ConstValue(ConstValue {

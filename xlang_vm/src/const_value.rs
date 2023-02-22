@@ -28,6 +28,7 @@ pub enum Type {
         parameters: LinkedHashMap<String, Type>,
         return_parameters: LinkedHashMap<String, Type>,
     },
+    String,
     Symbol(Rf<Scope>),
     Ident(String),
     Tuple(Vec<Type>),
@@ -99,6 +100,7 @@ impl PartialEq for Type {
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::String => f.write_str("string"),
             Self::Float { width, .. } => write!(f, "f{width}"),
             Self::Integer {
                 width,
@@ -185,6 +187,7 @@ impl Display for Type {
 impl NodeDisplay for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            Self::String => f.write_str("string"),
             Self::Symbol { .. } => write!(f, "Symbol"),
             Self::RecordInstance { .. } => write!(f, "Record Instance"),
             Self::Tuple(_) => write!(f, "Tuple"),
@@ -261,6 +264,9 @@ pub enum ConstValueKind {
     Float {
         value: f64,
     },
+    String {
+        string: String,
+    },
     Function {
         rf: Rf<Scope>,
         body: Statement,
@@ -286,6 +292,7 @@ impl Display for ConstValueKind {
             ConstValueKind::Empty => f.write_str("()"),
             ConstValueKind::Integer { value } => write!(f, "{value}"),
             ConstValueKind::Float { value } => write!(f, "{value}"),
+            ConstValueKind::String { string } => write!(f, "{string}"),
             ConstValueKind::Function { body, .. } => write!(f, "{}", body.format()),
             ConstValueKind::NativeFunction { .. } => write!(f, "Native Function"),
             ConstValueKind::Tuple(list) => {
@@ -349,6 +356,7 @@ impl NodeDisplay for ConstValueKind {
             ConstValueKind::Empty => write!(f, "Empty"),
             ConstValueKind::Integer { value } => write!(f, "Integer: {value}"),
             ConstValueKind::Float { value } => write!(f, "Float: {value}"),
+            ConstValueKind::String { string } => write!(f, "String: {string}"),
             ConstValueKind::Function { .. } => write!(f, "Function"),
             ConstValueKind::NativeFunction { .. } => write!(f, "Native Function"),
             ConstValueKind::Tuple(_) => write!(f, "Tuple"),
@@ -418,6 +426,13 @@ impl ConstValue {
         ConstValue {
             ty: ty.clone(),
             kind,
+        }
+    }
+
+    pub fn string(str: String) -> ConstValue {
+        ConstValue {
+            ty: Type::String,
+            kind: ConstValueKind::String { string: str },
         }
     }
 

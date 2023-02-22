@@ -30,6 +30,13 @@
 				"configuration": "./language-configuration.json"
 			}
 		],
+		"grammars": [
+			{
+				"language": "xlang",
+				"scopeName": "source.xlang",
+				"path": "./syntaxes/xlang.tmLanguage.json"
+			}
+		],
 		"configuration": {
 			"type": "object",
 			"title": "Example configuration",

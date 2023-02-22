@@ -330,6 +330,50 @@ impl TreeDisplay for Type {
 }
 
 #[derive(Clone)]
+pub enum ParsedTemplate {
+    String(SpannedToken),
+    Template(Box<Expression>, SpannedToken, SpannedToken),
+}
+
+impl NodeDisplay for ParsedTemplate {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // match self {
+        //     // ParsedTemplate::String(s) => f.write_str(s.as_str()),
+        // }
+        Ok(())
+    }
+}
+
+impl TreeDisplay for ParsedTemplate {
+    fn num_children(&self) -> usize {
+        0
+    }
+
+    fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay<()>> {
+        None
+    }
+}
+
+#[derive(Clone)]
+pub struct ParsedTemplateString(pub Vec<ParsedTemplate>);
+
+impl NodeDisplay for ParsedTemplateString {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("Parsed Template String")
+    }
+}
+
+impl TreeDisplay for ParsedTemplateString {
+    fn num_children(&self) -> usize {
+        self.0.len() 
+    }
+
+    fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay<()>> {
+        todo!()
+    }
+}
+
+#[derive(Clone)]
 pub enum Expression {
     BinaryExpression {
         left: Option<Box<Expression>>,
@@ -339,6 +383,7 @@ pub enum Expression {
     Integer(u64, Option<Unit>, SpannedToken),
     Float(f64, Option<Unit>, SpannedToken),
     Ident(SpannedToken),
+    String(ParsedTemplateString, SpannedToken),
     FunctionCall {
         expr: Box<Expression>,
         args: ArgList,
@@ -414,6 +459,7 @@ impl AstNode for Expression {
             Self::Integer(_, _, s) => s.0.into(),
             Self::Float(_, _, s) => s.0.into(),
             Self::Ident(s) => s.0.into(),
+            // Self::String(s) => s.0.into(),
             Self::FunctionCall { expr, args } => {
                 Range::from((&expr.get_range(), &args.get_range()))
             }
@@ -437,6 +483,7 @@ impl NodeDisplay for Expression {
             Self::Integer(i, None, _) => write!(f, "{i}"),
             Self::Float(i, None, _) => write!(f, "{i}"),
             Self::Ident(SpannedToken(_, Token::Ident(i))) => write!(f, "{i}"),
+            Self::String(pts, _) => write!(f, "\"{:?}\"", "kkjflsd"),
             Self::FunctionCall { .. } => write!(f, "FunctionCall"),
             Self::Array { .. } => f.write_str("Array"),
             _ => panic!(),

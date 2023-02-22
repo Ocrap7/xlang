@@ -2,6 +2,8 @@ use std::{fmt::Display, sync::RwLock};
 
 use xlang_util::format::{NodeDisplay, TreeDisplay};
 
+use crate::lexer::Template;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Operator {
     OpenSquare,
@@ -10,6 +12,7 @@ pub enum Operator {
     CloseParen,
     OpenBrace,
     CloseBrace,
+    Quote,
 
     Dot,
     Colon,
@@ -22,6 +25,7 @@ pub enum Operator {
     Divide,
     Exponent,
     Equals,
+
 }
 
 impl Operator {
@@ -33,6 +37,7 @@ impl Operator {
             Self::CloseParen => ")",
             Self::OpenBrace => "{",
             Self::CloseBrace => "}",
+            Self::Quote => "\"",
 
             Self::Dot => ".",
             Self::Colon => ":",
@@ -74,6 +79,8 @@ pub enum Token {
     Integer(u64),
     Float(f64),
     Operator(Operator),
+    String,
+    TemplateString(Vec<Template>),
 
     // Keyword(Keyword),
     Newline,
@@ -87,7 +94,9 @@ impl NodeDisplay for Token {
             Self::Operator(o) => f.write_str(o.as_str()),
             Self::Integer(i) => write!(f, "{i}"),
             Self::Float(fl) => write!(f, "{fl}"),
+            Self::TemplateString(s) => write!(f, "`{:?}`", s),
             Self::Newline => f.write_str("Newline"),
+            Self::String => f.write_str("String"),
             Self::Whitespace => f.write_str("Whitespace"),
         }
     }
@@ -161,6 +170,13 @@ impl SpannedToken {
     pub fn span(&self) -> &Span {
         &self.0
     }
+
+    // pub fn as_unquoted_str(&self) -> &str {
+    //     match &self.1 {
+    //         Token::String(id) => &id[1..id.len() - 1],
+    //         _ => panic!("Expected to be string"),
+    //     }
+    // }
 
     pub fn as_str(&self) -> &str {
         match &self.1 {

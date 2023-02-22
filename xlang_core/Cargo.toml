@@ -11,3 +11,4 @@ log = { version = "*", features = ["std"] }
 tower-lsp = "*"
 pollster = "*"
 linked-hash-map = "*"
+handlebars = "4.3.6"
