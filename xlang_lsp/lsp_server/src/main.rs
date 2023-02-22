@@ -66,6 +66,7 @@ pub struct SemanticTokenBuilder {
 
 impl SemanticTokenBuilder {
     pub fn push(&mut self, line: u32, position: u32, length: u32, token: u32, modifier: u32) {
+        println!("{} {} {}", line, position, length);
         if self.last_line == line {
             let delta_pos = position - self.last_pos;
             self.last_pos = position;
@@ -127,13 +128,13 @@ impl Backend {
     ) {
         match value {
             Expression::String(template_string, tok) => {
-                builder.push(
-                    tok.span().line_num,
-                    tok.span().position,
-                    1,
-                    get_stype_index(SemanticTokenType::STRING),
-                    0,
-                );
+                // builder.push(
+                //     tok.span().line_num,
+                //     tok.span().position,
+                //     1,
+                //     get_stype_index(SemanticTokenType::STRING),
+                //     0,
+                // );
 
                 for templ in &template_string.0 {
                     match templ {
@@ -152,21 +153,22 @@ impl Backend {
                     }
                 }
 
-                builder.push(
-                    tok.span().line_num,
-                    tok.span().position + tok.span().length - 1,
-                    1,
-                    get_stype_index(SemanticTokenType::STRING),
-                    0,
-                );
+                // builder.push(
+                //     tok.span().line_num,
+                //     tok.span().position + tok.span().length - 1,
+                //     1,
+                //     get_stype_index(SemanticTokenType::STRING),
+                //     0,
+                // );
             }
             Expression::Ident(tok) => {
                 let mut current_scope = Vec::new();
                 scope.push_scope_chain(&mut current_scope, scope_index.iter());
 
+                println!("Searching for symbol: {}", tok.as_str());
                 if let Some(sym) = scope.find_symbol_in_scope(tok.as_str(), &current_scope) {
                     let sym = sym.borrow();
-
+                    println!("Found the symbol");
                     match &sym.value {
                         ScopeValue::ConstValue(ConstValue {
                             kind:
@@ -397,18 +399,6 @@ impl Backend {
                         0,
                     );
                 });
-
-                // module.iter_symbol(args.iter_items(), |name, val| match val.borrow().kind {
-                //     _ => {
-                //         builder.push(
-                //             name.span().line_num,
-                //             name.span().position,
-                //             name.span().length,
-                //             get_stype_index_from_str("namespace"),
-                //             0,
-                //         );
-                //     }
-                // });
             }
         }
     }
@@ -452,10 +442,8 @@ impl LanguageServer for Backend {
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
-                    // TextDocumentSyncKind::INCREMENTAL,
                     TextDocumentSyncKind::FULL,
                 )),
-                // color_provider: Some(ColorProviderCapability::Simple(true)),
                 semantic_tokens_provider: Some(
                     SemanticTokensServerCapabilities::SemanticTokensOptions(
                         SemanticTokensOptions {
@@ -521,12 +509,6 @@ impl LanguageServer for Backend {
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
-        self.client
-            .log_message(
-                MessageType::INFO,
-                format!("completino {:?}", params.text_document_position.position),
-            )
-            .await;
         let res = {
             let map = &*self.documents.read().unwrap();
             let Some(mods) = map.get(&params.text_document_position.text_document.uri) else {
@@ -563,9 +545,6 @@ impl LanguageServer for Backend {
                 items
             }
         };
-        self.client
-            .log_message(MessageType::INFO, format!("completino {res:?}"))
-            .await;
 
         if let Some(items) = res {
             return Ok(Some(CompletionResponse::Array(items)));
@@ -586,7 +565,6 @@ impl LanguageServer for Backend {
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let out = xlang_core::Module::parse_str(&params.text_document.text, "mymod");
-        println!("tree {}", out.0.format());
 
         for err in out.1 {
             self.client.log_message(MessageType::ERROR, err).await;
@@ -596,7 +574,6 @@ impl LanguageServer for Backend {
 
         let code_pass = CodePass::new(self.symbol_tree.clone(), module.clone(), 1);
         let code_pass_state = code_pass.run();
-        println!("MMKLSDAJFLAKDSJFoij {}", self.symbol_tree.format());
 
         let diags: Vec<_> = code_pass_state
             .errors
@@ -613,7 +590,6 @@ impl LanguageServer for Backend {
                 ..Default::default()
             })
             .collect();
-        println!("diagns: {}", diags.len());
 
         self.client
             .publish_diagnostics(params.text_document.uri.clone(), diags, None)
@@ -624,14 +600,12 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        println!("Change {params:?}");
 
         let doc = params.text_document;
         for change in params.content_changes {
             let text = change.text;
 
             let out = xlang_core::Module::parse_str(&text, "mymod");
-            println!("{}", out.0.format());
 
             for err in out.1 {
                 self.client.log_message(MessageType::ERROR, err).await;
@@ -658,7 +632,6 @@ impl LanguageServer for Backend {
                 })
                 .collect();
 
-            println!("diagns: {}", diags.len());
             self.client
                 .publish_diagnostics(doc.uri.clone(), diags, None)
                 .await;
@@ -696,7 +669,7 @@ async fn main() {
     let _args = std::env::args();
 
     let listener = TcpListener::bind("127.0.0.1:5007").await.unwrap();
-    println!("cjkdsfj");
+    println!("Listening");
     let (stream, _) = listener.accept().await.unwrap();
     println!("Connection");
 
@@ -709,27 +682,6 @@ async fn main() {
 
         let symbol_tree = Rf::new(Scope::new(ScopeValue::Root, 0));
         {
-            // let std_module = std_module();
-
-            // let code_pass = CodePass::new(symbol_tree.clone(), std_module.clone());
-            // let code_pass_state = code_pass.run();
-            // let std_mod_scope = code_pass_state.scope.module.clone();
-
-            // let evaluator = Evaluator::new(std_module.clone(), code_pass_state.scope);
-            // let values = evaluator.evaluate();
-
-            // for error in &code_pass_state.errors {
-            //     error.print("std.xl", &lines);
-            // }
-
-            // for error in &evaluator.state.read().unwrap().errors {
-            //     error.print("std.xl", &lines);
-            // }
-
-            // for value in values {
-            //     println!("{value}");
-            // }
-            // let std_mod_scope = Rf::new(Scope::new(ScopeValue::Root));
             let std_mod_scope = symbol_tree.borrow_mut().insert("std", ScopeValue::Root, 0);
 
             fill_module(std_mod_scope);
@@ -738,27 +690,7 @@ async fn main() {
         Backend {
             element_names: HashSet::from_iter(["style".into(), "view".into(), "setup".into()]),
             style_enum: HashMap::from([
-                (
-                    "direction".to_string(),
-                    CompletionType::Enum(vec![
-                        "Vertical".to_string(),
-                        "Horizontal".to_string(),
-                        "VerticalReverse".to_string(),
-                        "HorizontalReverse".to_string(),
-                    ]),
-                ),
-                ("visible".to_string(), CompletionType::Boolean),
-                (
-                    "class".to_string(),
-                    CompletionType::Symbol(Box::new(CompletionType::Style)),
-                ),
-                ("backgroundColor".to_string(), CompletionType::Color),
-                ("foregroundColor".to_string(), CompletionType::Color),
-                ("borderColor".to_string(), CompletionType::Color),
-                ("borderWidth".to_string(), CompletionType::Rect),
-                ("padding".to_string(), CompletionType::Rect),
-                ("radius".to_string(), CompletionType::Rect),
-                ("gap".to_string(), CompletionType::Unknown),
+
             ]),
             documents: RwLock::new(HashMap::new()),
             client,

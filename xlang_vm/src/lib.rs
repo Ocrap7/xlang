@@ -23,8 +23,15 @@ const LINE_ENDING: &'static str = "\r\n";
 #[cfg(not(windows))]
 const LINE_ENDING: &'static str = "\n";
 
-pub fn run_file<P: AsRef<Path>>(path: P) {
-    let mut file = File::open(path.as_ref()).unwrap();
+pub fn run_file<P: AsRef<Path> + std::fmt::Display>(path: P) {
+    let mut file = match File::open(path.as_ref()) {
+        Ok(file) => file,
+        Err(e) => {
+            eprintln!("{}", e);
+            eprintln!("File: {}", path);
+            return;
+        }
+    };
 
     let mut input = String::new();
     file.read_to_string(&mut input).unwrap();

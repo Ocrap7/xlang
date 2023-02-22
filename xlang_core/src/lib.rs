@@ -36,69 +36,6 @@ impl Module {
 
         let er = parser.get_errors().clone();
 
-        // let mods = Symbol::new_root();
-        // let md = ModuleDescender::new(mods.clone())
-        //     .with_on_parameters(|params, ud| {
-        //         for param in params.iter_items() {
-        //             if let (Some(SpannedToken(_, Token::Ident(ident))), Some(ty)) =
-        //                 (&param.name, &param.ty)
-        //             {
-        //                 Symbol::insert(&ud, ident, SymbolKind::Parameter { ty: ty.clone() });
-        //             }
-        //         }
-        //         ud
-        //     })
-        //     .with_on_return_parameters(|params, ud| {
-        //         for param in params.iter_items() {
-        //             if let (Some(SpannedToken(_, Token::Ident(ident))), Some(ty)) =
-        //                 (&param.name, &param.ty)
-        //             {
-        //                 Symbol::insert(&ud, ident, SymbolKind::ReturnParameter { ty: ty.clone() });
-        //             }
-        //         }
-        //         ud
-        //     })
-        //     .with_on_statement(|st, ud| {
-        //         match st {
-        //             Statement::Decleration {
-        //                 ident: SpannedToken(_, Token::Ident(id)),
-        //                 expr,
-        //                 ..
-        //             } => {
-        //                 let cd = match expr {
-        //                     Some(Expression::Record { .. }) => {
-        //                         Symbol::insert(&ud, id, SymbolKind::Record)
-        //                     }
-        //                     Some(Expression::Function { .. }) => {
-        //                         Symbol::insert(&ud, id, SymbolKind::Function {})
-        //                     }
-        //                     // _ => Symbol::insert(&ud, id, SymbolKind::Variable {}),
-        //                     _ => ud.clone(),
-        //                 };
-
-        //                 return (cd, ud);
-        //             }
-        //             Statement::UseStatement { args, .. } => {
-        //                 let res: Option<Vec<String>> = args
-        //                     .iter_items()
-        //                     .inspect(|f| println!("{:?}", f))
-        //                     .map(|a| match a {
-        //                         SpannedToken(_, Token::Ident(i)) => Some(i.clone()),
-        //                         _ => None,
-        //                     })
-        //                     .collect();
-        //                 if let Some(res) = res {
-        //                     let cd = Symbol::insert(&ud, "use", SymbolKind::Use(res));
-        //                     return (cd, ud);
-        //                 }
-        //             }
-        //             _ => (),
-        //         }
-        //         (ud.clone(), ud)
-        //     });
-
-        // md.descend(&parsed);
-
         (
             Module {
                 name: mod_name.to_string(),

@@ -193,7 +193,6 @@ impl<'a> ScopeManager {
                 .iter()
                 .find(|f| f.1.borrow().index == *next)
             {
-                println!("Push {}", next);
                 buf.push(child.1.clone());
 
                 self.push_scope_chain_impl(&child.1, buf, chain);
@@ -421,9 +420,7 @@ impl<'a> ScopeManager {
                 return self.resolve_use_impl(&sym, &use_path[1..], cb);
             }
 
-            println!("Start {:?}", use_path);
             if let Some(sym) = self.root.borrow().children.get(start) {
-                println!("Sym ");
                 cb(&sym);
                 return self.resolve_use_impl(&sym, &use_path[1..], cb);
             }

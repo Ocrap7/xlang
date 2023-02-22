@@ -28,23 +28,28 @@
         "token_text": {
             "begin": "\"",
             "end": "\"",
+            "beginCaptures": { "0": {"name": "string.interpolated"} },
+            "endCaptures": { "0": {"name": "string.interpolated"} },
             "patterns": [
                 {
-                    "match": "(.*({))(.*)((}).*)",
+                    "match": ".*({)",
                     "captures": {
+                        "0": {
+                            "name": "string.interpolated"
+                        },
                         "1": {
+                            "name": "punctuation.section.embedded"
+                        }
+                    }
+                },
+                {
+                    "match": "(})[^\"]*",
+                    "captures": {
+                        "0": {
                             "name": "string.interpolated"
                         },
-                        "2": {
+                        "1": {
                             "name": "punctuation.section.embedded"
-                        },
-                        "3": {
-                        },
-                        "5": {
-                            "name": "punctuation.section.embedded"
-                        },
-                        "4": {
-                            "name": "string.interpolated"
                         }
                     }
                 }
