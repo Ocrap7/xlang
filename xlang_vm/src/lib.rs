@@ -19,7 +19,7 @@ pub mod scope;
 pub mod stdlib;
 
 #[cfg(windows)]
-const LINE_ENDING: &'static str = "\r\n";
+const LINE_ENDING: &str = "\r\n";
 #[cfg(not(windows))]
 const LINE_ENDING: &'static str = "\n";
 
@@ -27,8 +27,8 @@ pub fn run_file<P: AsRef<Path> + std::fmt::Display>(path: P) {
     let mut file = match File::open(path.as_ref()) {
         Ok(file) => file,
         Err(e) => {
-            eprintln!("{}", e);
-            eprintln!("File: {}", path);
+            eprintln!("{e}");
+            eprintln!("File: {path}");
             return;
         }
     };
@@ -53,7 +53,7 @@ pub fn run_file<P: AsRef<Path> + std::fmt::Display>(path: P) {
         let code_pass_state = code_pass.run();
         let std_mod_scope = code_pass_state.scope.module.clone();
 
-        let evaluator = Evaluator::new(std_module.clone(), code_pass_state.scope);
+        let evaluator = Evaluator::new(std_module, code_pass_state.scope);
         let values = evaluator.evaluate();
 
         for error in &code_pass_state.errors {

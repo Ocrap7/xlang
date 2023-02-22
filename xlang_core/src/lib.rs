@@ -22,10 +22,10 @@ pub use pollster;
 
 impl Module {
     pub fn parse_str(input: &str, mod_name: &str) -> (Module, Vec<ParseError>) {
-        let mut lexer = Lexer {};
+        let lexer = Lexer {};
         let tokens = lexer.lex(input);
         for p in &tokens {
-            println!("{:#?}", p);
+            println!("{p:#?}");
         }
 
         let parser = Parser::new(tokens);

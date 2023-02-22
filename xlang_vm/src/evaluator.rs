@@ -166,7 +166,7 @@ impl Evaluator {
                         ParsedTemplate::String(s) => s.as_str().to_string(),
                         ParsedTemplate::Template(t, _, _) => {
                             let expr = self.evaluate_expression(t, index);
-                            format!("{}", expr)
+                            format!("{expr}")
                         }
                     }
                 }).intersperse("".to_string()).collect::<String>();
@@ -286,7 +286,7 @@ impl Evaluator {
                             })
                             .collect();
 
-                        let value = ConstValue::record_instance(rf.clone(), return_values);
+                        let value = ConstValue::record_instance(rf, return_values);
 
                         self.wstate().scope.pop_scope();
 
@@ -341,9 +341,9 @@ impl Evaluator {
 
                         let return_vals = callback(has_args.as_ref().unwrap());
 
-                        let value = ConstValue::record_instance(rf.clone(), return_vals);
+                        
 
-                        value
+                        ConstValue::record_instance(rf, return_vals)
                     }
                     // Record is instantiated
                     (Type::Symbol(sym), _) => {
@@ -354,7 +354,7 @@ impl Evaluator {
                                 .zip(args.into_iter())
                                 .enumerate()
                                 .filter_map(|(i, ((name, ty), arg))| {
-                                    let arg = arg.try_implicit_cast(&ty).unwrap_or(arg);
+                                    let arg = arg.try_implicit_cast(ty).unwrap_or(arg);
                                     if &arg.ty == ty {
                                         Some((name.clone(), arg))
                                     } else {
@@ -597,7 +597,7 @@ impl Evaluator {
             });
             ConstValue::empty()
         } else {
-            return res;
+            res
         }
     }
 

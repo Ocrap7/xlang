@@ -15,10 +15,10 @@ pub enum ErrorLevel {
 impl Display for ErrorLevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ErrorLevel::Hint => f.write_str(&"hint".bright_green().bold().to_string()),
-            ErrorLevel::Info => f.write_str(&"info".bright_cyan().bold().to_string()),
-            ErrorLevel::Warning => f.write_str(&"warning".bright_yellow().bold().to_string()),
-            ErrorLevel::Error => f.write_str(&"error".bright_red().bold().to_string()),
+            ErrorLevel::Hint => f.write_str(&"hint".bright_green().bold()),
+            ErrorLevel::Info => f.write_str(&"info".bright_cyan().bold()),
+            ErrorLevel::Warning => f.write_str(&"warning".bright_yellow().bold()),
+            ErrorLevel::Error => f.write_str(&"error".bright_red().bold()),
         }
     }
 }
@@ -162,31 +162,30 @@ impl Display for EvaluationErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::TypeMismatch(_, _, TypeHint::ReturnParameter) => {
-                f.write_str(&"return type mismatch".bold().bright_white().to_string())
+                f.write_str(&"return type mismatch".bold().bright_white())
             }
             Self::TypeMismatch(_, _, TypeHint::Parameter) => {
-                f.write_str(&"parameter type mismatch".bold().bright_white().to_string())
+                f.write_str(&"parameter type mismatch".bold().bright_white())
             }
             Self::TypeMismatch(_, _, TypeHint::Variable) => {
-                f.write_str(&"variable type mismatch".bold().bright_white().to_string())
+                f.write_str(&"variable type mismatch".bold().bright_white())
             }
             Self::TypeMismatch(_, _, TypeHint::Function) => {
-                f.write_str(&"function type mismatch".bold().bright_white().to_string())
+                f.write_str(&"function type mismatch".bold().bright_white())
             }
             Self::TypeMismatch(_, _, _) => {
-                f.write_str(&"type mismatch".bold().bright_white().to_string())
+                f.write_str(&"type mismatch".bold().bright_white())
             }
             Self::ArgCountMismatch(_, _) => {
-                f.write_str(&"type mismatch".bold().bright_white().to_string())
+                f.write_str(&"type mismatch".bold().bright_white())
             }
             Self::NotInitialized { .. } => {
-                f.write_str(&"never initialized".bold().bright_white().to_string())
+                f.write_str(&"never initialized".bold().bright_white())
             }
             Self::BinExpMismatch { .. } => f.write_str(
                 &"operation cannot be evaluated"
                     .bold()
-                    .bright_white()
-                    .to_string(),
+                    .bright_white(),
             ),
             Self::SymbolNotFound(_) => f.write_str("symbol not found"),
         }

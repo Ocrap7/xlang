@@ -94,7 +94,7 @@ impl NodeDisplay for Token {
             Self::Operator(o) => f.write_str(o.as_str()),
             Self::Integer(i) => write!(f, "{i}"),
             Self::Float(fl) => write!(f, "{fl}"),
-            Self::TemplateString(s) => write!(f, "`{:?}`", s),
+            Self::TemplateString(s) => write!(f, "`{s:?}`"),
             Self::Newline => f.write_str("Newline"),
             Self::String => f.write_str("String"),
             Self::Whitespace => f.write_str("Whitespace"),

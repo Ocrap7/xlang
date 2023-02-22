@@ -1,3 +1,5 @@
 use std.io
 
-print("fjl {89} djkk")
+func: (i32 a) -> (i32 b), b = a ** 2
+
+print("fjl {func(8)} djkk")

@@ -20,7 +20,7 @@ use xlang_vm::const_value::{ConstValue, ConstValueKind};
 use xlang_vm::error::ErrorLevel;
 use xlang_vm::pass::CodePass;
 use xlang_vm::scope::{Scope, ScopeManager, ScopeValue};
-use xlang_vm::stdlib::{fill_module, std_module};
+use xlang_vm::stdlib::{fill_module};
 
 struct ReadDirectoryRequest {}
 
@@ -66,7 +66,6 @@ pub struct SemanticTokenBuilder {
 
 impl SemanticTokenBuilder {
     pub fn push(&mut self, line: u32, position: u32, length: u32, token: u32, modifier: u32) {
-        println!("{} {} {}", line, position, length);
         if self.last_line == line {
             let delta_pos = position - self.last_pos;
             self.last_pos = position;
@@ -127,7 +126,7 @@ impl Backend {
         builder: &mut SemanticTokenBuilder,
     ) {
         match value {
-            Expression::String(template_string, tok) => {
+            Expression::String(template_string, _tok) => {
                 // builder.push(
                 //     tok.span().line_num,
                 //     tok.span().position,
@@ -147,7 +146,7 @@ impl Backend {
                                 0,
                             );
                         }
-                        ParsedTemplate::Template(st, o, c) => {
+                        ParsedTemplate::Template(st, _o, _c) => {
                             self.recurse_expression(st, module, scope, scope_index, builder);
                         }
                     }
@@ -165,10 +164,8 @@ impl Backend {
                 let mut current_scope = Vec::new();
                 scope.push_scope_chain(&mut current_scope, scope_index.iter());
 
-                println!("Searching for symbol: {}", tok.as_str());
                 if let Some(sym) = scope.find_symbol_in_scope(tok.as_str(), &current_scope) {
                     let sym = sym.borrow();
-                    println!("Found the symbol");
                     match &sym.value {
                         ScopeValue::ConstValue(ConstValue {
                             kind:
@@ -390,7 +387,7 @@ impl Backend {
                     )
                 }
 
-                scope.iter_use(args.iter_items().map(|f| (f.as_str(), f)), |sym, ud| {
+                scope.iter_use(args.iter_items().map(|f| (f.as_str(), f)), |_sym, ud| {
                     builder.push(
                         ud.span().line_num,
                         ud.span().position,
@@ -413,7 +410,7 @@ impl Backend {
 
     fn bsearch_statement(
         &self,
-        module: &Module,
+        _module: &Module,
         item: &Statement,
         _span: &Span,
     ) -> Option<Vec<CompletionItem>> {

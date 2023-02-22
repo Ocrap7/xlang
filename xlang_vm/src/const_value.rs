@@ -142,7 +142,7 @@ impl Display for Type {
             Self::Symbol(rs) => {
                 let rs = rs.borrow();
                 if let ScopeValue::Record { ident, members } = &rs.value {
-                    write!(f, "{}: (", ident)?;
+                    write!(f, "{ident}: (")?;
                     let mut iter = members.iter();
 
                     if let Some(val) = iter.next() {
@@ -173,10 +173,10 @@ impl Display for Type {
                 let mut iter = ty.iter();
 
                 if let Some(val) = iter.next() {
-                    write!(f, "{}", val)?;
+                    write!(f, "{val}")?;
                 }
                 for val in iter {
-                    write!(f, " ,{}", val)?;
+                    write!(f, " ,{val}")?;
                 }
                 write!(f, ")")
             }

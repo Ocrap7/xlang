@@ -336,7 +336,7 @@ pub enum ParsedTemplate {
 }
 
 impl NodeDisplay for ParsedTemplate {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // match self {
         //     // ParsedTemplate::String(s) => f.write_str(s.as_str()),
         // }
@@ -349,7 +349,7 @@ impl TreeDisplay for ParsedTemplate {
         0
     }
 
-    fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay<()>> {
+    fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<()>> {
         None
     }
 }
@@ -368,7 +368,7 @@ impl TreeDisplay for ParsedTemplateString {
         self.0.len() 
     }
 
-    fn child_at(&self, index: usize) -> Option<&dyn TreeDisplay<()>> {
+    fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<()>> {
         todo!()
     }
 }
@@ -483,7 +483,7 @@ impl NodeDisplay for Expression {
             Self::Integer(i, None, _) => write!(f, "{i}"),
             Self::Float(i, None, _) => write!(f, "{i}"),
             Self::Ident(SpannedToken(_, Token::Ident(i))) => write!(f, "{i}"),
-            Self::String(pts, _) => write!(f, "\"{:?}\"", "kkjflsd"),
+            Self::String(_pts, _) => write!(f, "\"{:?}\"", "kkjflsd"),
             Self::FunctionCall { .. } => write!(f, "FunctionCall"),
             Self::Array { .. } => f.write_str("Array"),
             _ => panic!(),

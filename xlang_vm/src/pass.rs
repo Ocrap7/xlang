@@ -9,7 +9,7 @@ use xlang_core::{
 use xlang_util::Rf;
 
 use crate::{
-    const_value::{ConstValue, ConstValueKind, Type},
+    const_value::{ConstValue, Type},
     error::EvaluationError,
     scope::{Scope, ScopeManager, ScopeValue},
 };
@@ -166,7 +166,7 @@ impl CodePass {
                         (pvals, rvals)
                     };
 
-                    self.wstate().scope.push_scope(rf.clone());
+                    self.wstate().scope.push_scope(rf);
 
                     for (name, ty) in pvals {
                         self.wstate().scope.update_value(
@@ -237,7 +237,7 @@ impl CodePass {
                 //     kind: EvaluationErrorKind::SymbolNotFound(id.as_str().to_string()),
                 //     range: id.get_range(),
                 // });
-                return Type::Empty;
+                Type::Empty
             }
         }
     }

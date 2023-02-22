@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, collections::HashMap, sync::Arc};
+use std::{borrow::Borrow, sync::Arc};
 
 use linked_hash_map::LinkedHashMap;
 use xlang_core::{
@@ -105,8 +105,8 @@ impl NodeDisplay for Scope {
 
 impl TreeDisplay for Scope {
     fn num_children(&self) -> usize {
-        2 + (if self.children.len() > 0 { 1 } else { 0 })
-            + (if self.uses.len() > 0 { 1 } else { 0 })
+        2 + (if !self.children.is_empty() { 1 } else { 0 })
+            + (if !self.uses.is_empty() { 1 } else { 0 })
     }
 
     fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<()>> {
@@ -119,7 +119,7 @@ impl TreeDisplay for Scope {
 
     fn child_at_bx<'a>(&'a self, _index: usize) -> Box<dyn TreeDisplay<()> + 'a> {
         match _index {
-            2 if self.uses.len() > 0 => Box::new(GrouperIter(
+            2 if !self.uses.is_empty() => Box::new(GrouperIter(
                 "Use".to_string(),
                 self.uses.len(),
                 self.uses.iter().map(|f| f as &'a dyn TreeDisplay),
@@ -195,7 +195,7 @@ impl<'a> ScopeManager {
             {
                 buf.push(child.1.clone());
 
-                self.push_scope_chain_impl(&child.1, buf, chain);
+                self.push_scope_chain_impl(child.1, buf, chain);
             }
         }
     }
@@ -398,7 +398,7 @@ impl<'a> ScopeManager {
             let node = node.borrow();
             let node = node.children.iter().find(|f| f.1.borrow().index == *next)?;
 
-            return self.resolve_symbol_indicies_impl(&node.1, name, indicies);
+            self.resolve_symbol_indicies_impl(node.1, name, indicies)
             // if let Some(sym) = self.resolve_symbol_indicies_impl(&node.1, name, indicies) {
             //     return Some(sym)
             // } else {
@@ -421,8 +421,8 @@ impl<'a> ScopeManager {
             }
 
             if let Some(sym) = self.root.borrow().children.get(start) {
-                cb(&sym);
-                return self.resolve_use_impl(&sym, &use_path[1..], cb);
+                cb(sym);
+                return self.resolve_use_impl(sym, &use_path[1..], cb);
             }
         }
         None
@@ -434,9 +434,9 @@ impl<'a> ScopeManager {
         use_path: &[String],
         cb: impl Fn(&Rf<Scope>),
     ) -> Option<Rf<Scope>> {
-        if use_path.len() == 0 {
+        if use_path.is_empty() {
             match &node.borrow().value {
-                ScopeValue::Use(u) => return self.resolve_use(&u, cb),
+                ScopeValue::Use(u) => return self.resolve_use(u, cb),
                 _ => (),
             }
             return Some(node.clone());
@@ -461,8 +461,8 @@ impl<'a> ScopeManager {
             }
 
             if let Some(sym) = self.root.borrow().children.get(start.0) {
-                cb(&sym, start.1);
-                return self.iter_use_impl(&sym, path, cb);
+                cb(sym, start.1);
+                return self.iter_use_impl(sym, path, cb);
             }
         }
         None
@@ -481,7 +481,7 @@ impl<'a> ScopeManager {
             }
         } else {
             match &node.borrow().value {
-                ScopeValue::Use(u) => return self.resolve_use(&u, |_| {}),
+                ScopeValue::Use(u) => return self.resolve_use(u, |_| {}),
                 _ => (),
             }
             return Some(node.clone());
