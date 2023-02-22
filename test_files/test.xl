@@ -1,6 +1,3 @@
-use std
+use std.io
 
-d: 8
-var: "djkl {7} djl"
-
-print(var)
+print("dfjkl")

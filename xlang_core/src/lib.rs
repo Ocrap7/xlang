@@ -121,6 +121,14 @@ pub struct Module {
 }
 
 impl Module {
+    pub fn empty(name: &str) -> Module {
+        Module {
+            name: name.to_string(),
+            content: "".to_string(),
+            stmts: Vec::new()
+        }
+    }
+
     pub fn format(&self) -> String {
         self.stmts
             .iter()

@@ -1,11 +1,16 @@
 {
     "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-
     "scopeName": "source.xlang",
     "patterns": [
-        { "include": "#node_type" },
-        { "include": "#node_range_index" },
-        { "include": "#token_text" }
+        {
+            "include": "#node_type"
+        },
+        {
+            "include": "#node_range_index"
+        },
+        {
+            "include": "#token_text"
+        }
     ],
     "repository": {
         "node_type": {
@@ -24,17 +29,27 @@
             "begin": "\"",
             "end": "\"",
             "patterns": [
-                 {
-                    "begin": "{(.*)}",
+                {
+                    "match": "(.*({))(.*)((}).*)",
                     "captures": {
                         "1": {
-                            "name": "keyword.operator"
+                            "name": "string.interpolated"
+                        },
+                        "2": {
+                            "name": "punctuation.section.embedded"
+                        },
+                        "3": {
+                        },
+                        "5": {
+                            "name": "punctuation.section.embedded"
+                        },
+                        "4": {
+                            "name": "string.interpolated"
                         }
-                    },
-                    "name": "punctuation.section.embedded"
-                 }
-            ],
-            "name": "string.interpolated"
+                    }
+                }
+                
+            ]
         }
     }
 }

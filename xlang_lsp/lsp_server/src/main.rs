@@ -147,27 +147,11 @@ impl Backend {
                             );
                         }
                         ParsedTemplate::Template(st, o, c) => {
-                            // builder.push(
-                            //     o.span().line_num,
-                            //     o.span().position,
-                            //     o.span().length + 4,
-                            //     get_stype_index(SemanticTokenType::new("formatSpecifier")),
-                            //     0,
-                            // );
                             self.recurse_expression(st, module, scope, scope_index, builder);
-                            // builder.push(
-                            //     c.span().line_num,
-                            //     c.span().position,
-                            //     c.span().length,
-                            //     get_stype_index(SemanticTokenType::KEYWORD),
-                            //     0,
-                            // );
                         }
-                        _ => (),
                     }
                 }
 
-                println!("lenln{}", tok.span().position + tok.span().length);
                 builder.push(
                     tok.span().line_num,
                     tok.span().position + tok.span().length - 1,

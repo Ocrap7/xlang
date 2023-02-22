@@ -29,6 +29,14 @@ pub fn fill_module(module: Rf<Scope>) {
 
     // module.insert("print", ScopeValue::)
 
+    let io = module.insert("io", ScopeValue::Module(Arc::new(Module::empty("io"))), 0);
+
+    fill_io(&io);
+}
+
+pub fn fill_io(module: &Rf<Scope>) {
+    let mut module = module.borrow_mut();
+
     create_func(
         &mut module,
         "print",
