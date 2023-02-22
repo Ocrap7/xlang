@@ -1,6 +1,5 @@
 #![feature(box_patterns)]
 
-use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
@@ -14,7 +13,6 @@ use xlang_core::ast::{
 };
 use xlang_core::token::{Operator, Span, SpannedToken, Token};
 use xlang_core::Module;
-use xlang_util::format::TreeDisplay;
 use xlang_util::Rf;
 use xlang_vm::const_value::{ConstValue, ConstValueKind};
 use xlang_vm::error::ErrorLevel;
@@ -263,7 +261,6 @@ impl Backend {
             Expression::Record { parameters } => {
                 self.recurse_params(module, parameters, scope_index, builder);
             }
-            _ => (),
         }
     }
 
