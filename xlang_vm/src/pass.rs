@@ -169,19 +169,11 @@ impl CodePass {
                     self.wstate().scope.push_scope(rf);
 
                     for (name, ty) in pvals {
-                        self.wstate().scope.update_value(
-                            &name,
-                            ty,
-                            index,
-                        );
+                        self.wstate().scope.update_value(&name, ty, index);
                     }
 
                     for (name, ty) in rvals {
-                        self.wstate().scope.update_value(
-                            &name,
-                            ty,
-                            index,
-                        );
+                        self.wstate().scope.update_value(&name, ty, index);
                     }
 
                     self.wstate().scope.pop_scope();

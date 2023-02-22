@@ -20,7 +20,7 @@ use xlang_vm::const_value::{ConstValue, ConstValueKind};
 use xlang_vm::error::ErrorLevel;
 use xlang_vm::pass::CodePass;
 use xlang_vm::scope::{Scope, ScopeManager, ScopeValue};
-use xlang_vm::stdlib::{fill_module};
+use xlang_vm::stdlib::fill_module;
 
 struct ReadDirectoryRequest {}
 
@@ -597,7 +597,6 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-
         let doc = params.text_document;
         for change in params.content_changes {
             let text = change.text;
@@ -686,9 +685,7 @@ async fn main() {
 
         Backend {
             element_names: HashSet::from_iter(["style".into(), "view".into(), "setup".into()]),
-            style_enum: HashMap::from([
-
-            ]),
+            style_enum: HashMap::from([]),
             documents: RwLock::new(HashMap::new()),
             client,
             symbol_tree,

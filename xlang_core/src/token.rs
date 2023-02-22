@@ -25,7 +25,6 @@ pub enum Operator {
     Divide,
     Exponent,
     Equals,
-
 }
 
 impl Operator {

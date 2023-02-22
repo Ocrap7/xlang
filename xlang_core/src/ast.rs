@@ -365,7 +365,7 @@ impl NodeDisplay for ParsedTemplateString {
 
 impl TreeDisplay for ParsedTemplateString {
     fn num_children(&self) -> usize {
-        self.0.len() 
+        self.0.len()
     }
 
     fn child_at(&self, _index: usize) -> Option<&dyn TreeDisplay<()>> {

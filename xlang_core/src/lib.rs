@@ -62,7 +62,7 @@ impl Module {
         Module {
             name: name.to_string(),
             content: "".to_string(),
-            stmts: Vec::new()
+            stmts: Vec::new(),
         }
     }
 

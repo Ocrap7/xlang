@@ -2,7 +2,10 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use linked_hash_map::LinkedHashMap;
 use xlang_core::{
-    ast::{ArgList, AstNode, Expression, ParamaterList, Statement, ParsedTemplate, ParsedTemplateString},
+    ast::{
+        ArgList, AstNode, Expression, ParamaterList, ParsedTemplate, ParsedTemplateString,
+        Statement,
+    },
     token::{Operator, Range, SpannedToken, Token},
     Module,
 };
@@ -161,17 +164,19 @@ impl Evaluator {
             Expression::Integer(val, _, _) => ConstValue::cinteger(*val),
             Expression::Float(val, _, _) => ConstValue::cfloat(*val),
             Expression::String(ParsedTemplateString(vs), _) => {
-                let str = vs.iter().map(|f| {
-                    match f {
+                let str = vs
+                    .iter()
+                    .map(|f| match f {
                         ParsedTemplate::String(s) => s.as_str().to_string(),
                         ParsedTemplate::Template(t, _, _) => {
                             let expr = self.evaluate_expression(t, index);
                             format!("{expr}")
                         }
-                    }
-                }).intersperse("".to_string()).collect::<String>();
+                    })
+                    .intersperse("".to_string())
+                    .collect::<String>();
                 ConstValue::string(str)
-            },
+            }
             Expression::Ident(tok @ SpannedToken(_, Token::Ident(id))) => {
                 let sym = self.rstate().scope.find_symbol(id);
                 if let Some(sym) = sym {
@@ -340,8 +345,6 @@ impl Evaluator {
                         }
 
                         let return_vals = callback(has_args.as_ref().unwrap());
-
-                        
 
                         ConstValue::record_instance(rf, return_vals)
                     }
